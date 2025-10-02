@@ -10,11 +10,14 @@ def rotate_vector_to_child(odom_msg: Odometry, vec_in_parent):
     rotation_child_parent = quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
 
     rotation_parent_child = rotation_child_parent.T
-    rotated_vector = rotation_parent_child.dot(vector_to_list(vec_in_parent))
-    if isinstance(vec_in_parent, Vector3):
-        return Vector3(x=rotated_vector[0], y=rotated_vector[1], z=rotated_vector[2])
 
-    return rotated_vector
+    if isinstance(vec_in_parent, Vector3):
+        rotated_vector = rotation_parent_child.dot(vector_to_list(vec_in_parent))
+        return Vector3(x=rotated_vector[0], y=rotated_vector[1], z=rotated_vector[2])
+    if isinstance(vec_in_parent, np.ndarray):
+        return rotation_parent_child.dot(vec_in_parent)
+
+    return None
 
 
 def transform_point_to_child(odom_parent: Odometry, point_in_odom):
@@ -73,12 +76,6 @@ def odometry_to_transform(odom_msg: Odometry):
     transform_to_body.transform.rotation = odom_msg.pose.pose.orientation
 
     return transform_to_body
-
-
-def rotate_quat_into_parent_frame(odom_msg: Odometry, q_in_child):
-    q_parent_from_child = quat_msg_to_list(odom_msg.pose.pose.orientation)
-    q_in_parent = quaternion_multiply(q_parent_from_child, q_in_child)
-    return q_in_parent
 
 
 def rotate_quat_to_child(odom_msg: Odometry, q_in_parent):

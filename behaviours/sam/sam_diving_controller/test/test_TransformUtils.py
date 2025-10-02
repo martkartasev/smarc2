@@ -1,12 +1,11 @@
 import numpy as np
-from geometry_msgs.msg import Point, PointStamped, Quaternion
+from geometry_msgs.msg import Point, PointStamped, Quaternion, Vector3
 from nav_msgs.msg import Odometry
 from sam_diving_controller.TransformUtils import (
     rotate_vector_to_child,
     transform_point_to_child,
     odometry_to_transform,
     quat_msg_to_list,
-    rotate_quat_into_parent_frame,
     rotate_quat_to_child,
 )
 from std_msgs.msg import Header
@@ -22,7 +21,7 @@ def test_d_quat_msg_to_list():
     assert to_list[3] == 1.0
 
 
-def test_rotate_vector_90deg_yaw():
+def test_rotate_vector_90deg_yaw_array():
     quaternion_tuple = quaternion_from_euler(0.0, 0.0, np.deg2rad(90.0))  # [x,y,z,w]
     odom = make_odom(q=Quaternion(x=quaternion_tuple[0], y=quaternion_tuple[1], z=quaternion_tuple[2], w=quaternion_tuple[3]))
 
@@ -31,6 +30,19 @@ def test_rotate_vector_90deg_yaw():
 
     expected = np.array([0.0, -1.0, 0.0])
     np.testing.assert_allclose(vector_child, expected, atol=1e-7)
+
+
+def test_rotate_vector_90deg_yaw_vector_vector3():
+    quaternion_tuple = quaternion_from_euler(0.0, 0.0, np.deg2rad(90.0))  # [x,y,z,w]
+    odom = make_odom(q=Quaternion(x=quaternion_tuple[0], y=quaternion_tuple[1], z=quaternion_tuple[2], w=quaternion_tuple[3]))
+
+    vector_parent = np.array([1.0, 0.0, 0.0])
+    vector_child = rotate_vector_to_child(odom, Vector3(x=vector_parent[0], y=vector_parent[1], z=vector_parent[2]))
+
+    np.testing.assert_(isinstance(vector_child, Vector3))
+    np.testing.assert_allclose(vector_child.x, 0, atol=1e-7)
+    np.testing.assert_allclose(vector_child.y, -1, atol=1e-7)
+    np.testing.assert_allclose(vector_child.z, 0, atol=1e-7)
 
 
 def test_rotate_vector_arbitrary_dir_90deg_yaw():
@@ -46,18 +58,6 @@ def test_rotate_vector_arbitrary_dir_90deg_yaw():
 
     v_child = rotate_vector_to_child(odom, vector_parent)
     np.testing.assert_allclose(v_child, expected, atol=1e-7)
-
-
-def test_rotate_quat_into_parent_frame_90deg_yaw():
-    quaternion_tuple = quaternion_from_euler(0.0, 0.0, np.deg2rad(90.0))
-    odom = make_odom(q=Quaternion(x=quaternion_tuple[0], y=quaternion_tuple[1], z=quaternion_tuple[2], w=quaternion_tuple[3]))
-
-    quaternion_child = quaternion_from_euler(0.0, 0.0, np.deg2rad(45.0))
-
-    quaternion_parent = rotate_quat_into_parent_frame(odom, quaternion_child)
-
-    expected = quaternion_from_euler(0.0, 0.0, np.deg2rad(135.0))
-    np.testing.assert_allclose(quaternion_parent, expected, atol=1e-7)
 
 
 def test_rotate_quat_to_child_inverts_parent_90deg_yaw():
@@ -77,7 +77,7 @@ def test_rotate_quat_to_child_inverts_parent_90deg_yaw():
     ]), atol=1e-7)
 
 
-def test_transform_point_to_child_translation_and_yaw90():
+def test_transform_point_stamped_to_child_translation_and_yaw90():
     quaternion_tuple = quaternion_from_euler(0.0, 0.0, np.deg2rad(90.0))
     odom = make_odom(10.0, 5.0, 0.0, q=Quaternion(x=quaternion_tuple[0], y=quaternion_tuple[1], z=quaternion_tuple[2], w=quaternion_tuple[3]))
 
@@ -93,8 +93,31 @@ def test_transform_point_to_child_translation_and_yaw90():
     p = np.array([13.0, 9.0, 2.0])
     expected = rotation_parent_child.dot(p - t)
 
+    np.testing.assert_(isinstance(point_child, PointStamped))
     np.testing.assert_allclose(
         [point_child.point.x, point_child.point.y, point_child.point.z],
+        expected,
+        atol=1e-7,
+    )
+
+
+def test_transform_point_to_child_translation_and_yaw90():
+    quaternion_tuple = quaternion_from_euler(0.0, 0.0, np.deg2rad(90.0))
+    odom = make_odom(10.0, 5.0, 0.0, q=Quaternion(x=quaternion_tuple[0], y=quaternion_tuple[1], z=quaternion_tuple[2], w=quaternion_tuple[3]))
+
+    test_point_odom = Point(x=13.0, y=9.0, z=2.0)
+
+    point_child = transform_point_to_child(odom, test_point_odom)
+
+    rotation_child_parent = quaternion_matrix([quaternion_tuple[0], quaternion_tuple[1], quaternion_tuple[2], quaternion_tuple[3]])[:3, :3]
+    rotation_parent_child = rotation_child_parent.T
+    t = np.array([10.0, 5.0, 0.0])
+    p = np.array([13.0, 9.0, 2.0])
+    expected = rotation_parent_child.dot(p - t)
+
+    np.testing.assert_(isinstance(point_child, Point))
+    np.testing.assert_allclose(
+        [point_child.x, point_child.y, point_child.z],
         expected,
         atol=1e-7,
     )

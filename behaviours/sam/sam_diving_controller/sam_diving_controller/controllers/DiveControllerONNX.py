@@ -4,8 +4,8 @@ from nav_msgs.msg import Odometry
 from sam_diving_controller.controllers.DiveControllerInterface import DiveControllerInterface
 from sam_diving_controller.controllers.ONNXManager import ONNXManager
 
-from behaviours.sam.sam_diving_controller.sam_diving_controller import TransformUtils
-from behaviours.sam.sam_diving_controller.sam_diving_controller.IDivePub import MissionStates, ActuatorStates
+from sam_diving_controller import TransformUtils
+from sam_diving_controller.IDivePub import MissionStates, ActuatorStates
 
 
 class DiveControllerONNX(DiveControllerInterface):

@@ -45,5 +45,7 @@ def test_integration_convert_to_body():
     odom.twist.twist.linear = Vector3(x=0.1, y=0.2, z=0.3)
     odom.twist.twist.angular = Vector3(x=0.4, y=0.5, z=0.6)
 
-    sut.convert_to_body(odom, odom)
+    body = sut.convert_to_body(odom, odom)
+
+
 
