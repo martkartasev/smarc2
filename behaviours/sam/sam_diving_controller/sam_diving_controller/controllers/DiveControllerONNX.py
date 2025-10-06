@@ -2,7 +2,7 @@ import numpy as np
 from geometry_msgs.msg import PoseStamped, Pose
 from nav_msgs.msg import Odometry
 from sam_diving_controller.controllers.DiveControllerInterface import DiveControllerInterface
-from sam_diving_controller.controllers.ONNXManager import ONNXManager
+from sam_diving_controller.controllers.ONNXManager import ONNXManager, norm_move, norm_align
 
 from sam_diving_controller import TransformUtils
 from sam_diving_controller.IDivePub import MissionStates, ActuatorStates
@@ -22,7 +22,10 @@ class DiveControllerONNX(DiveControllerInterface):
         self._error = None
         self.waypoint = None
 
-        self.onnx_manager = ONNXManager("DR_temp")
+        self.onnx_manager_move = ONNXManager("SAMAlign")
+        self.onnx_manager_align = ONNXManager("SAMMove")
+        self.onnx_manager_move.normalization = norm_move
+        self.onnx_manager_align.normalization = norm_align
 
         self._loginfo("ONNX Dive Controller created")
 
@@ -53,11 +56,13 @@ class DiveControllerONNX(DiveControllerInterface):
         waypoint_body_ned = self.convert_to_body(current_state_in_mocap, waypoint_mocap_frd)
         control_input = self._dive_sub.get_control_input()
 
-        onnx_input = self.onnx_manager.prepare_state((odometry_mocap_ned,
-                                                      odometry_body_ned,
-                                                      waypoint_body_ned,
-                                                      control_input))
-        control_output = self.onnx_manager.get_control_scaled(onnx_input)
+        manager = self.onnx_manager_move if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) > 0.5 else self.onnx_manager_align
+
+        onnx_input = manager.prepare_state((odometry_mocap_ned,
+                                            odometry_body_ned,
+                                            waypoint_body_ned,
+                                            control_input))
+        control_output = manager.get_control_scaled(onnx_input)
 
         self.set_publishers(control_output)
 

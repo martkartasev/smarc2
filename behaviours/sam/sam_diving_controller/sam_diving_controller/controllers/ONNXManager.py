@@ -36,11 +36,12 @@ class ONNXManager():
         self.aileron_angle_max = aileron_angle_max
         self.vbs_max = vbs_max
         self.lcg_max = lcg_max
+        self.normalization = lambda x: x
 
     def get_control_scaled(self, x):
         return self.rescale_outputs(self.get_control(x))
 
-    def get_control(self, x, prep_state_func=lambda x: x):
+    def get_control(self, x):
         """
         Inputs (1,27):
             x[0-3] = Orientation. Mocap frame. NED, Quaternion
@@ -61,7 +62,7 @@ class ONNXManager():
             y[3] = VBS
             y[4] = LCG
         """
-        x = prep_state_func(x)
+        x = self.normalization(x)
         controls = self.onnx_inferenceSession.run(["continuous_actions"], {'obs_0': x})
         return np.array(controls[0], dtype=np.float32).flatten()
 
@@ -80,14 +81,16 @@ class ONNXManager():
         x[0, 3] = odom_mocap_ned.pose.pose.orientation.w
 
         # x[4-6] = Linear velocity. Body Frame, FLU, Vector3
-        x[0, 4] = odom_body_ned.twist.twist.linear.x
-        x[0, 5] = odom_body_ned.twist.twist.linear.y
-        x[0, 6] = odom_body_ned.twist.twist.linear.z
+        linear = limit_vector(odom_body_ned.twist.twist.linear * 1.5)
+        x[0, 4] = linear.x
+        x[0, 5] = linear.y
+        x[0, 6] = linear.z
 
         # x[7-9] = Angular velocity. Body Frame, FLU, Vector3
-        x[0, 7] = odom_body_ned.twist.twist.angular.x
-        x[0, 8] = odom_body_ned.twist.twist.angular.y
-        x[0, 9] = odom_body_ned.twist.twist.angular.z
+        angular = limit_vector(odom_body_ned.twist.twist.angular * 3)
+        x[0, 7] = angular.x
+        x[0, 8] = angular.y
+        x[0, 9] = angular.z
 
         # x[10-12] = Relative vector to waypoint. Body Frame, NED, Vector3
         x[0, 10] = waypoint.pose.pose.position.x
@@ -100,13 +103,13 @@ class ONNXManager():
         x[0, 15] = waypoint.pose.pose.orientation.z
         x[0, 16] = waypoint.pose.pose.orientation.w
 
-        # x[17] = Target velocity magnitude. Between 0.1 - 0.5.
+        # x[17] = Target velocity magnitude. Between 0.1 - 0.5. Normalized to 0.2 - 1
         x[0, 17] = 1
 
         # x[18-20] = Absolute position. Mocap frame, NED, Vector3
-        x[0, 18] = odom_mocap_ned.pose.pose.position.x
-        x[0, 19] = odom_mocap_ned.pose.pose.position.y
-        x[0, 20] = odom_mocap_ned.pose.pose.position.z
+        x[0, 18] = range_normalize(odom_mocap_ned.pose.pose.position.x, 0.8, 8.2)
+        x[0, 19] = range_normalize(odom_mocap_ned.pose.pose.position.y, 1.5, -1.5)
+        x[0, 20] = range_normalize(odom_mocap_ned.pose.pose.position.z, -2.6, -0.2)
 
         # x[21-25] = Previous/current "action" vector.
         x[0, 21] = control['rpm1'] / 1000
@@ -137,3 +140,24 @@ class ONNXManager():
         y[3] = ((y[3] + 1) * 0.5) * self.vbs_max
         y[4] = ((y[4] + 1) * 0.5) * self.lcg_max
         return y
+
+
+def norm_move(x):
+    x[:, 10:13] = limit_vector(x[:, 10:13] / 9)
+    return x
+
+
+def norm_align(x):
+    x[:, 10:13] = limit_vector(x[:, 10:13] / 2)
+    return x
+
+
+def limit_vector(vec):
+    magnitude = np.linalg.norm(vec)
+    if magnitude > 1:
+        return vec / magnitude  # normalized
+    return vec
+
+
+def range_normalize(value, min_val, max_val):
+    return (value - min_val) * 2.0 / (max_val - min_val) - 1.0
