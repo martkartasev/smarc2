@@ -4,6 +4,7 @@ on:
   push:
     branches:
         - humble
+        - rl_control
         - gh_workflow_testing
   pull_request:
     branches:
@@ -16,3 +17,14 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build the Docker image
       run: docker build -t smarc2/base --build-arg UID=$(id -u) --build-arg GID=$(id -g) --build-arg USERNAME=$(whoami)  -f docker/Dockerfile .
+
+  ros_tests:
+    runs-on: ubuntu-22.04
+    container:
+      image: smarc2/base # or your custom image, e.g. ghcr.io/your-org/ros-ci:latest
+    steps:
+      - name: Run tests
+        run: |
+          source install/setup.bash
+          colcon test --packages-select sam_diving_controller --event-handlers console_cohesion+
+          colcon test-result --verbose  --packages-select sam_diving_controller --event-handlers console_cohesion+

@@ -4,7 +4,7 @@ on:
   push:
     branches:
         - humble
-        - rl_control
+#        - rl_control
         - gh_workflow_testing
   pull_request:
     branches:
