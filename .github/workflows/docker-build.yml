@@ -26,8 +26,8 @@ jobs:
         # mount the repo into /ws so test results come back to the host
         docker run --rm \
           -v "${{ github.workspace }}:/ws" \
-          -w /ws \
-          smarc2/base \
+          -w / \
+          smarc2/base:latest \
           bash -lc '
             set -e
             source install/setup.bash || true
@@ -35,7 +35,7 @@ jobs:
             colcon build --symlink-install
             colcon test --packages-select sam_diving_controller --event-handlers console_cohesion+
             colcon test-result --verbose
-          
+          '
 
 #    - name: Upload test results (CTest/colcon)
 #      if: always()
