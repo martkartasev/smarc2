@@ -1,0 +1,24 @@
+name: colcon-test
+
+on:
+  push:
+    branches:
+        - humble
+        - rl_control
+        - gh_workflow_testing
+  pull_request:
+    branches:
+        - humble
+
+jobs:
+  ros_tests:
+    runs-on: ubuntu-latest
+
+    container:
+      image: smarc2/base # or your custom image, e.g. ghcr.io/your-org/ros-ci:latest
+    steps:
+      - name: Run tests
+        run: |
+          source install/setup.bash
+          colcon test --packages-select sam_diving_controller --event-handlers console_cohesion+
+          colcon test-result --verbose  --packages-select sam_diving_controller --event-handlers console_cohesion+
