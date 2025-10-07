@@ -4,7 +4,6 @@ on:
   push:
     branches:
         - humble
-        - rl_control
         - gh_workflow_testing
   pull_request:
     branches:
@@ -17,32 +16,3 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build the Docker image
       run: docker build -t smarc2/base --build-arg UID=$(id -u) --build-arg GID=$(id -g) --build-arg USERNAME=$(whoami)  -f docker/Dockerfile .
-
-    - name: List images
-      run: docker images smarc2/base
-
-    - name: Run colcon tests inside the container
-      run: |
-        # mount the repo into /ws so test results come back to the host
-        docker run --rm \
-          -v "${{ github.workspace }}:/ws" \
-          -w / \
-          smarc2/base:latest \
-          bash -lc '
-            set -e
-            source install/setup.bash || true
-
-            colcon build --symlink-install
-            colcon test --packages-select sam_diving_controller --event-handlers console_cohesion+
-            colcon test-result --verbose
-          '
-
-#    - name: Upload test results (CTest/colcon)
-#      if: always()
-#      uses: actions/upload-artifact@v4
-#      with:
-#        name: colcon-test-results
-#        path: |
-#          **/build/*/Testing/**
-#          **/build/*/CTestTestfile.cmake
-#          **/log/**
