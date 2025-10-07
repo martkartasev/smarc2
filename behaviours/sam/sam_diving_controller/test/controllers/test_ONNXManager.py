@@ -105,23 +105,3 @@ def test_prepare_state():
 
     assert state.shape == (1, 28), 'Output shape is incorrect.'
 
-
-def test_limit_vector():
-    v = np.array([3.0, 4.0])
-    vector = limit_vector(v)
-
-    assert vector[0] == 0.6
-    assert vector[1] == 0.8
-
-    v2 = np.array([0.3, 0.4])
-    vector = limit_vector(v2)
-    assert vector[0] == 0.3
-    assert vector[1] == 0.4
-
-def test_range_normalize():
-
-    assert range_normalize(5, 0, 10) == 0
-
-    values = np.array([0, 5, 10])
-    expected = np.array([-1.0, 0.0, 1.0])
-    assert np.allclose(range_normalize(values, 0, 10), expected)

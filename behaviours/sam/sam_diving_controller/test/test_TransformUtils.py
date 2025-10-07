@@ -6,7 +6,7 @@ from sam_diving_controller.TransformUtils import (
     transform_point_to_child,
     odometry_to_transform,
     quat_msg_to_list,
-    rotate_quat_to_child,
+    rotate_quat_to_child, range_normalize, limit_vector,
 )
 from std_msgs.msg import Header
 from tf_transformations import quaternion_from_euler, quaternion_matrix, quaternion_inverse
@@ -140,6 +140,26 @@ def test_odom_to_transform():
     assert np.isclose(tf_msg.transform.rotation.w, quaternion_tuple[3])
 
 
+def test_limit_vector():
+    v = np.array([3.0, 4.0])
+    vector = limit_vector(v)
+
+    assert vector[0] == 0.6
+    assert vector[1] == 0.8
+
+    v2 = np.array([0.3, 0.4])
+    vector = limit_vector(v2)
+    assert vector[0] == 0.3
+    assert vector[1] == 0.4
+
+def test_range_normalize():
+
+    assert range_normalize(5, 0, 10) == 0
+
+    values = np.array([0, 5, 10])
+    expected = np.array([-1.0, 0.0, 1.0])
+    assert np.allclose(range_normalize(values, 0, 10), expected)
+
 def make_odom(x=0.0, y=0.0, z=0.0, q=None, frame="odom"):
     odom = Odometry()
     odom.header = Header(frame_id=frame)
@@ -148,3 +168,4 @@ def make_odom(x=0.0, y=0.0, z=0.0, q=None, frame="odom"):
         q = Quaternion(x=0.0, y=0.0, z=0.0, w=1.0)
     odom.pose.pose.orientation = q
     return odom
+

@@ -95,3 +95,13 @@ def quat_msg_to_list(q: Quaternion):
 
 def vector_to_list(v):
     return [v.x, v.y, v.z]
+
+
+def limit_vector(vec):
+    magnitude = np.linalg.norm(vec)
+    if magnitude > 1:
+        return vec / magnitude  # normalized
+    return vec
+
+def range_normalize(value, min_val, max_val):
+    return (value - min_val) * 2.0 / (max_val - min_val) - 1.0

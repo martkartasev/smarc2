@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 import onnxruntime as ort
+from sam_diving_controller.TransformUtils import vector_to_list, limit_vector, range_normalize
 from ament_index_python import get_package_share_directory
 
 
@@ -81,16 +82,12 @@ class ONNXManager():
         x[0, 3] = odom_mocap_ned.pose.pose.orientation.w
 
         # x[4-6] = Linear velocity. Body Frame, FLU, Vector3
-        linear = limit_vector(odom_body_ned.twist.twist.linear * 1.5)
-        x[0, 4] = linear.x
-        x[0, 5] = linear.y
-        x[0, 6] = linear.z
+        linear = limit_vector(np.array(vector_to_list(odom_body_ned.twist.twist.linear)) * 1.5)
+        x[0, 4:7] = linear
 
         # x[7-9] = Angular velocity. Body Frame, FLU, Vector3
-        angular = limit_vector(odom_body_ned.twist.twist.angular * 3)
-        x[0, 7] = angular.x
-        x[0, 8] = angular.y
-        x[0, 9] = angular.z
+        angular = limit_vector(np.array(vector_to_list(odom_body_ned.twist.twist.angular)) * 3)
+        x[0, 7:10] = angular
 
         # x[10-12] = Relative vector to waypoint. Body Frame, NED, Vector3
         x[0, 10] = waypoint.pose.pose.position.x
@@ -150,14 +147,3 @@ def norm_move(x):
 def norm_align(x):
     x[:, 10:13] = limit_vector(x[:, 10:13] / 2)
     return x
-
-
-def limit_vector(vec):
-    magnitude = np.linalg.norm(vec)
-    if magnitude > 1:
-        return vec / magnitude  # normalized
-    return vec
-
-
-def range_normalize(value, min_val, max_val):
-    return (value - min_val) * 2.0 / (max_val - min_val) - 1.0
