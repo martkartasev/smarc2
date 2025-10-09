@@ -9,6 +9,10 @@
        <node name="diving_node" pkg="sam_diving_controller" exec="rl_waypoint_following" output="screen">
         <param name="robot_name" value="$(var robot_name)"/>
         <param name="tf_suffix" value="$(var tf_suffix)"/>
+        <param name="target_frame" value="base_link" />
+        <param name="distance_frame" value="base_link" />
+        <param name="distance_frame_suffix" value="" />
+        <param name="frame_suffix" value="" />
 	    <param from="$(var control_yaml)"/>
        </node>
     </group>
