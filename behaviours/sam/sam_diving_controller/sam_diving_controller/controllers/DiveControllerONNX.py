@@ -42,13 +42,14 @@ class DiveControllerONNX(DiveControllerInterface):
 
         waypoint_mocap_frd = self._get_waypoint()
         if waypoint_mocap_frd is None:
+            self._loginfo_once(f"No waypoint available yet.")
             return
 
         # Get the current states
         current_state_in_mocap = self._dive_sub.get_states_in_mocap()
 
         if current_state_in_mocap is None:
-            self._loginfo(f"No state available yet.")
+            self._loginfo_once(f"No state available yet.")
             return
 
         odometry_mocap_ned = self.convert_enu_to_ned(current_state_in_mocap, convert_state=True)
