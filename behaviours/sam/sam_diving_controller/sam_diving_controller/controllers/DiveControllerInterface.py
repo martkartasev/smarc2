@@ -1,4 +1,6 @@
 from sam_diving_controller.IDivePub import ActuatorStates
+from smarc_control_msgs.msg import ControlInput
+
 
 class DiveControllerInterface:
 
