@@ -2,6 +2,8 @@ from sam_diving_controller.IDivePub import ActuatorStates
 from smarc_control_msgs.msg import ControlInput
 
 
+from smarc_control_msgs.msg import ControlInput, ControlReference
+
 class DiveControllerInterface:
 
     def __init__(self, node, dive_pub, dive_sub, param, rate=0.1):
@@ -23,6 +25,9 @@ class DiveControllerInterface:
 
     def _loginfo(self, s):
         self._node.get_logger().info(s)
+
+    def _logwarn(self, s):
+        self._node.get_logger().warn(s)
 
     def _loginfo_once(self, s):
         self._node.get_logger().info(s, once=True)
