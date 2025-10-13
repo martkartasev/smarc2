@@ -26,6 +26,7 @@ class DiveControllerONNX(DiveControllerInterface):
         self.onnx_manager_align = ONNXManager("SAMMove")
         self.onnx_manager_move.normalization = norm_move
         self.onnx_manager_align.normalization = norm_align
+        self.manager = self.onnx_manager_move
 
         self._loginfo("ONNX Dive Controller created")
 
@@ -57,13 +58,15 @@ class DiveControllerONNX(DiveControllerInterface):
         waypoint_body_ned = self.convert_to_body(current_state_in_mocap, waypoint_mocap_frd)
         control_input = self._dive_sub.get_control_input()
 
-        manager = self.onnx_manager_move if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) > 0.5 else self.onnx_manager_align
+        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
+                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
+            else self.onnx_manager_move
 
-        onnx_input = manager.prepare_state((odometry_mocap_ned,
-                                            odometry_body_ned,
-                                            waypoint_body_ned,
-                                            control_input))
-        control_output = manager.get_control_scaled(onnx_input)
+        onnx_input = self.manager.prepare_state((odometry_mocap_ned,
+                                                 odometry_body_ned,
+                                                 waypoint_body_ned,
+                                                 control_input))
+        control_output = self.manager.get_control_scaled(onnx_input)
 
         self.set_publishers(control_output)
 
