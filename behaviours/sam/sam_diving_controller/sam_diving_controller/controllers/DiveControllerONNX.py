@@ -62,6 +62,9 @@ class DiveControllerONNX(DiveControllerInterface):
                                                   or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
 
+        pos = waypoint_body_ned.pose.pose.position
+        self._loginfo(f'Position: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
+
         onnx_input = self.manager.prepare_state((odometry_mocap_ned,
                                                  odometry_body_ned,
                                                  waypoint_body_ned,
