@@ -3,6 +3,7 @@ from geometry_msgs.msg import PoseStamped, Pose
 from nav_msgs.msg import Odometry
 from sam_diving_controller.controllers.DiveControllerInterface import DiveControllerInterface
 from sam_diving_controller.controllers.ONNXManager import ONNXManager, norm_move, norm_align
+from scipy.spatial.transform import Rotation as R
 
 from sam_diving_controller import TransformUtils
 from sam_diving_controller.IDivePub import MissionStates, ActuatorStates
@@ -53,72 +54,75 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo_once(f"No state available yet.")
             return
 
-        odometry_mocap_ned = self.convert_enu_to_ned(current_state_in_mocap, convert_state=True)
-        odometry_body_ned = self.convert_to_body(current_state_in_mocap, odometry_mocap_ned)
-        waypoint_body_ned = self.convert_to_body(current_state_in_mocap, waypoint_mocap_frd)
+        odometry_mocap_frd = self.convert_flu_to_frd(current_state_in_mocap, convert_state=True)
+        odometry_body_frd = self.convert_to_body(current_state_in_mocap, odometry_mocap_frd)
+        waypoint_body_frd = self.convert_to_body(current_state_in_mocap, waypoint_mocap_frd)
         control_input = self._dive_sub.get_control_input()
 
-        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
-                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_ned.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
+        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
+                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
 
-        pos = waypoint_body_ned.pose.pose.position
+        pos = waypoint_body_frd.pose.pose.position
         self._loginfo(f'Position: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
 
-        onnx_input = self.manager.prepare_state((odometry_mocap_ned,
-                                                 odometry_body_ned,
-                                                 waypoint_body_ned,
+        onnx_input = self.manager.prepare_state((odometry_mocap_frd,
+                                                 odometry_body_frd,
+                                                 waypoint_body_frd,
                                                  control_input))
         control_output = self.manager.get_control_scaled(onnx_input)
 
         self.set_publishers(control_output)
 
-    def convert_enu_to_ned(self, enu_msg, convert_state=True):
+    def convert_flu_to_frd(self, flu_msg, convert_state=True):
         """
-        If convert_state, it converts an odometry message from ENU to NED
+        If convert_state, it converts an odometry message from FLU to FRD
 
         """
-        ned_odometry = Odometry()
-        ned_odometry.header.frame_id = "/mocap"  # state_msg.header.frame_id# + "_conv"
-        ned_odometry.header.stamp = enu_msg.header.stamp
+        frd_odometry = Odometry()
+        frd_odometry.header.frame_id = flu_msg.header.frame_id
+        frd_odometry.header.stamp = flu_msg.header.stamp
         if convert_state:
-            ned_odometry.pose.pose.position.x = enu_msg.pose.pose.position.y
-            ned_odometry.pose.pose.position.y = enu_msg.pose.pose.position.x
-            ned_odometry.pose.pose.position.z = -enu_msg.pose.pose.position.z
-            ned_odometry.pose.pose.orientation = enu_msg.pose.pose.orientation
+            frd_odometry.pose.pose.position.x = flu_msg.pose.pose.position.x
+            frd_odometry.pose.pose.position.y = flu_msg.pose.pose.position.y
+            frd_odometry.pose.pose.position.z = flu_msg.pose.pose.position.z
+            quat = self.quat_flu_to_frd([flu_msg.pose.pose.orientation.w,
+                                         flu_msg.pose.pose.orientation.x,
+                                         flu_msg.pose.pose.orientation.y,
+                                         flu_msg.pose.pose.orientation.z])
+            frd_odometry.pose.pose.orientation.x = quat[1]
+            frd_odometry.pose.pose.orientation.y = quat[2]
+            frd_odometry.pose.pose.orientation.z = quat[3]
+            frd_odometry.pose.pose.orientation.w = quat[0]
 
-            quat = self.quat_enu_to_ned([enu_msg.pose.pose.orientation.x,
-                                         enu_msg.pose.pose.orientation.y,
-                                         enu_msg.pose.pose.orientation.z,
-                                         enu_msg.pose.pose.orientation.w])
-
-            ned_odometry.pose.pose.orientation.x = quat[0]
-            ned_odometry.pose.pose.orientation.y = quat[1]
-            ned_odometry.pose.pose.orientation.z = quat[2]
-            ned_odometry.pose.pose.orientation.w = quat[3]
-
-            ned_odometry.twist.twist.linear.x = enu_msg.twist.twist.linear.y
-            ned_odometry.twist.twist.linear.y = enu_msg.twist.twist.linear.x
-            ned_odometry.twist.twist.linear.z = -enu_msg.twist.twist.linear.z
-            ned_odometry.twist.twist.angular.x = enu_msg.twist.twist.angular.y
-            ned_odometry.twist.twist.angular.y = enu_msg.twist.twist.angular.x
-            ned_odometry.twist.twist.angular.z = -enu_msg.twist.twist.angular.z
+            frd_odometry.twist.twist.linear.x = flu_msg.twist.twist.linear.x
+            frd_odometry.twist.twist.linear.y = -flu_msg.twist.twist.linear.y
+            frd_odometry.twist.twist.linear.z = -flu_msg.twist.twist.linear.z
+            frd_odometry.twist.twist.angular.x = flu_msg.twist.twist.angular.x
+            frd_odometry.twist.twist.angular.y = -flu_msg.twist.twist.angular.y
+            frd_odometry.twist.twist.angular.z = -flu_msg.twist.twist.angular.z
 
         else:
-            ned_odometry = enu_msg
+            frd_odometry = flu_msg
 
-        return ned_odometry
+        return frd_odometry
 
-    def quat_enu_to_ned(self, quat_enu):
+    def quat_flu_to_frd(self, q_flu):
         """
-        Transform quaternion from ENU to NED.
+        quat_flu = [q0, q1, q2, q3], with q0 the scalar part
         """
-        q = quat_enu
+        quat_flu = np.array([q_flu[1], q_flu[2], q_flu[3], q_flu[0]])
 
-        q_ned = 1 / np.sqrt(2) * np.array([q[0] + q[3], q[1] + q[2], q[1] - q[2], q[0] - q[3]])
-        q_ned /= np.linalg.norm(q_ned)
-
-        return q_ned
+        rot = R.from_euler('x', 180, degrees=True)
+        r_flu = R.from_quat(quat_flu)  # Convert ENU quaternion to rotation object, assumes scalar last
+        r_frd = r_flu.as_matrix() @ rot.as_matrix()
+        quat_frd = R.from_matrix(r_frd).as_quat()  # Convert back to quaternion with scalar last
+        quat_frd_right_order = np.array([quat_frd[3],  # w
+                                         quat_frd[0],  # x
+                                         quat_frd[1],  # y
+                                         quat_frd[2]  # z
+                                         ])
+        return quat_frd_right_order
 
     def set_publishers(self, outputs):
         """
@@ -177,17 +181,17 @@ class DiveControllerONNX(DiveControllerInterface):
 
         return odom_wp
 
-    def convert_to_body(self, mocap_odometry: Odometry, odometry: Odometry):
+    def convert_to_body(self, target_frame: Odometry, odometry: Odometry):
         odom = Odometry()
 
         odom.child_frame_id = ""
         odom.header.frame_id = "base_link"
         odom.header.stamp = self._node.get_clock().now().to_msg()
 
-        odom.pose.pose.position = TransformUtils.transform_point_to_child(mocap_odometry, odometry.pose.pose.position)
-        odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(mocap_odometry, odometry.pose.pose.orientation)
+        odom.pose.pose.position = TransformUtils.transform_point_to_child(target_frame, odometry.pose.pose.position)
+        odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(target_frame, odometry.pose.pose.orientation)
 
-        odom.twist.twist.linear = TransformUtils.rotate_vector_to_child(mocap_odometry, odometry.twist.twist.linear)
-        odom.twist.twist.angular = TransformUtils.rotate_vector_to_child(mocap_odometry, odometry.twist.twist.angular)
+        odom.twist.twist.linear = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.linear)
+        odom.twist.twist.angular = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.angular)
 
         return odom
