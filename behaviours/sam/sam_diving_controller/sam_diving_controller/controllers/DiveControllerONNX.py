@@ -63,10 +63,8 @@ class DiveControllerONNX(DiveControllerInterface):
                                                   or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
 
-        pos = current_state_in_mocap.twist.twist.linear
-        self._loginfo(f'Vel: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
-        pos = current_state_in_mocap.twist.twist.angular
-        self._loginfo(f'Ang: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
+        pos = odometry_body_frd.twist.twist.linear
+        self._loginfo(f'Vec: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
 
         onnx_input = self.manager.prepare_state((odometry_mocap_frd,
                                                  odometry_body_frd,
@@ -193,7 +191,8 @@ class DiveControllerONNX(DiveControllerInterface):
         odom.pose.pose.position = TransformUtils.transform_point_to_child(target_frame, odometry.pose.pose.position)
         odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(target_frame, odometry.pose.pose.orientation)
 
-        odom.twist.twist.linear = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.linear)
-        odom.twist.twist.angular = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.angular)
+        odom.twist.twist = odometry.twist.twist
+        # odom.twist.twist.linear = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.linear)
+        # odom.twist.twist.angular = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.angular)
 
         return odom

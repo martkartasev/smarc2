@@ -254,16 +254,7 @@ class DiveSub():
 
         self._states_in_mocap.header.frame_id = self._waypoint_global.header.frame_id
         self._states_in_mocap.pose.pose = tf2_geometry_msgs.do_transform_pose(self._states.pose.pose, self._tf_global_odom)
-
-        linear = Vector3Stamped()
-        linear.header = self._states.header
-        linear.vector = self._states.twist.twist.linear
-        self._states_in_mocap.twist.twist.linear = tf2_geometry_msgs.do_transform_vector3(linear, self._tf_global_odom).vector
-
-        angular = Vector3Stamped()
-        angular.header = self._states.header
-        angular.vector = self._states.twist.twist.angular
-        self._states_in_mocap.twist.twist.angular = tf2_geometry_msgs.do_transform_vector3(angular, self._tf_global_odom).vector
+        self._states_in_mocap.twist.twist = self._states.twist.twist
 
         self._transformed_state_to_mocap = True
 
