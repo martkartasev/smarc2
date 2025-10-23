@@ -42,8 +42,8 @@ class DiveControllerONNX(DiveControllerInterface):
         # Engage actuators in case they were off before.
         self._dive_pub.set_actuator_states(ActuatorStates.ENGAGED, "DP")
 
-        waypoint_mocap_frd = self._get_waypoint()
-        if waypoint_mocap_frd is None:
+        waypoint_mocap_flu = self._get_waypoint()
+        if waypoint_mocap_flu is None:
             self._loginfo_once(f"No waypoint available yet.")
             return
 
@@ -56,14 +56,14 @@ class DiveControllerONNX(DiveControllerInterface):
 
         odometry_mocap_frd = self.convert_flu_to_frd(current_state_in_mocap, convert_state=True)
         odometry_body_frd = self.convert_to_body(current_state_in_mocap, odometry_mocap_frd)
-        waypoint_body_frd = self.convert_to_body(current_state_in_mocap, waypoint_mocap_frd)
+        waypoint_body_frd = self.convert_flu_to_frd(self.convert_to_body(current_state_in_mocap, waypoint_mocap_flu), convert_state=True)
         control_input = self._dive_sub.get_control_input()
 
         self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
                                                   or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
 
-        pos = odometry_body_frd.twist.twist.linear
+        pos = waypoint_body_frd.pose.pose.position
         self._loginfo(f'Vec: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
 
         onnx_input = self.manager.prepare_state((odometry_mocap_frd,
@@ -84,8 +84,8 @@ class DiveControllerONNX(DiveControllerInterface):
         frd_odometry.header.stamp = flu_msg.header.stamp
         if convert_state:
             frd_odometry.pose.pose.position.x = flu_msg.pose.pose.position.x
-            frd_odometry.pose.pose.position.y = flu_msg.pose.pose.position.y
-            frd_odometry.pose.pose.position.z = flu_msg.pose.pose.position.z
+            frd_odometry.pose.pose.position.y = -flu_msg.pose.pose.position.y
+            frd_odometry.pose.pose.position.z = -flu_msg.pose.pose.position.z
             quat = self.quat_flu_to_frd([flu_msg.pose.pose.orientation.w,
                                          flu_msg.pose.pose.orientation.x,
                                          flu_msg.pose.pose.orientation.y,
