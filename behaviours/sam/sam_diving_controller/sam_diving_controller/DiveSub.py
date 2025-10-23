@@ -377,7 +377,6 @@ class DiveSub():
 
     def get_waypoint(self):
         return self._waypoint_global
-    
 
     def get_path(self, path):
         return self.path
