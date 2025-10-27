@@ -4,18 +4,25 @@ from geometry_msgs.msg import PointStamped, TransformStamped, Point, Quaternion,
 from nav_msgs.msg import Odometry
 from tf_transformations import quaternion_matrix, quaternion_multiply, quaternion_inverse
 
-
 def rotate_vector_to_child(odom_msg: Odometry, vec_in_parent):
     q = odom_msg.pose.pose.orientation
-    rotation_child_parent = quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
 
-    rotation_parent_child = rotation_child_parent.T
+    q_ros = np.array([
+        q.x,
+        q.y,
+        q.z,
+        q.w
+    ], dtype=float)
+
+    q_ros /= np.linalg.norm(q_ros)
+    q_inv = quaternion_inverse(q_ros)
+    rotation_parent_child = quaternion_matrix(q_inv)[:3, :3]
 
     if isinstance(vec_in_parent, Vector3):
-        rotated_vector = rotation_parent_child.dot(vector_to_list(vec_in_parent))
+        rotated_vector = rotation_parent_child @ vector_to_list(vec_in_parent)
         return Vector3(x=rotated_vector[0], y=rotated_vector[1], z=rotated_vector[2])
     if isinstance(vec_in_parent, np.ndarray):
-        return rotation_parent_child.dot(vec_in_parent)
+        return rotation_parent_child @ (vec_in_parent)
 
     return None
 
@@ -90,11 +97,11 @@ def rotate_quat_to_child(odom_msg: Odometry, q_in_parent):
 
 
 def quat_msg_to_list(q: Quaternion):
-    return [q.x, q.y, q.z, q.w]
+    return np.array([q.x, q.y, q.z, q.w])
 
 
 def vector_to_list(v):
-    return [v.x, v.y, v.z]
+    return np.array([v.x, v.y, v.z])
 
 
 def limit_vector(vec):

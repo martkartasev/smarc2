@@ -63,38 +63,37 @@ class ONNXManager():
             y[3] = VBS
             y[4] = LCG
         """
-        x = self.normalization(x)
+
         controls = self.onnx_inferenceSession.run(["continuous_actions"], {'obs_0': x})
         return np.array(controls[0], dtype=np.float32).flatten()
 
     def prepare_state(self, state):
-        odom_mocap_ned = state[0]
-        odom_body_ned = state[1]
-        waypoint = state[2]
-        control = state[3]
+        odom_frd = state[0]
+        waypoint = state[1]
+        control = state[2]
 
         x = np.zeros((1, 28), dtype=np.float32)
 
-        # x[0-3] = Orientation. Mocap frame. NED, Quaternion
-        x[0, 0] = odom_mocap_ned.pose.pose.orientation.x
-        x[0, 1] = odom_mocap_ned.pose.pose.orientation.y
-        x[0, 2] = odom_mocap_ned.pose.pose.orientation.z
-        x[0, 3] = odom_mocap_ned.pose.pose.orientation.w
+        # x[0-3] = Orientation. Mocap frame. FRD, Quaternion
+        x[0, 0] = odom_frd.pose.pose.orientation.x
+        x[0, 1] = odom_frd.pose.pose.orientation.y
+        x[0, 2] = odom_frd.pose.pose.orientation.z
+        x[0, 3] = odom_frd.pose.pose.orientation.w
 
-        # x[4-6] = Linear velocity. Body Frame, FLU, Vector3
-        linear = limit_vector(np.array(vector_to_list(odom_body_ned.twist.twist.linear)) * 1.5)
+        # x[4-6] = Linear velocity. Body Frame, FRD, Vector3
+        linear = limit_vector(np.array(vector_to_list(odom_frd.twist.twist.linear)) * 1.5)
         x[0, 4:7] = linear
 
-        # x[7-9] = Angular velocity. Body Frame, FLU, Vector3
-        angular = limit_vector(np.array(vector_to_list(odom_body_ned.twist.twist.angular)) * 3)
+        # x[7-9] = Angular velocity. Body Frame, FRD, Vector3
+        angular = limit_vector(np.array(vector_to_list(odom_frd.twist.twist.angular)) * 3)
         x[0, 7:10] = angular
 
-        # x[10-12] = Relative vector to waypoint. Body Frame, NED, Vector3
+        # x[10-12] = Relative vector to waypoint. Body Frame, FRD, Vector3
         x[0, 10] = waypoint.pose.pose.position.x
         x[0, 11] = waypoint.pose.pose.position.y
         x[0, 12] = waypoint.pose.pose.position.z
 
-        # x[13-16] = Relative orientation of waypoint w.r.p body. Body Frame, NED, Quaternion
+        # x[13-16] = Relative orientation of waypoint w.r.p body. Body Frame, FRD, Quaternion
         x[0, 13] = waypoint.pose.pose.orientation.x
         x[0, 14] = waypoint.pose.pose.orientation.y
         x[0, 15] = waypoint.pose.pose.orientation.z
@@ -103,10 +102,10 @@ class ONNXManager():
         # x[17] = Target velocity magnitude. Between 0.1 - 0.5. Normalized to 0.2 - 1
         x[0, 17] = 1
 
-        # x[18-20] = Absolute position. Mocap frame, NED, Vector3
-        x[0, 18] = range_normalize(odom_mocap_ned.pose.pose.position.x, 0.8, 8.2)
-        x[0, 19] = range_normalize(odom_mocap_ned.pose.pose.position.y, 1.5, -1.5)
-        x[0, 20] = range_normalize(odom_mocap_ned.pose.pose.position.z, -2.6, -0.2)
+        # x[18-20] = Absolute position. Mocap frame, FRD, Vector3
+        x[0, 18] = range_normalize(odom_frd.pose.pose.position.x, 0.8, 8.2)
+        x[0, 19] = range_normalize(odom_frd.pose.pose.position.y, 1.5, -1.5)
+        x[0, 20] = range_normalize(odom_frd.pose.pose.position.z, 0, 2.8)
 
         # x[21-25] = Previous/current "action" vector.
         x[0, 21] = control['rpm1'] / 1000
@@ -118,8 +117,9 @@ class ONNXManager():
         # x[26] = LCG feedback. Normalized to [0, 1] (Divide percentage by 100)
         # x[27] = VBS feedback. Normalized to [0, 1] (Divide percentage by 100)
         x[0, 26] = control['lcg'] / 100  # Normalized differently, unfortunately
-        x[0, 27] = control['vbs'] / 100
+        x[0, 27] = control['vbs'] / 100 #TODO: Need actual feedback
 
+        x = self.normalization(x)
         return np.clip(x, -1, 1)
 
     def rescale_outputs(self, y):

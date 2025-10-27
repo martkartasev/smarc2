@@ -1,5 +1,5 @@
 import numpy as np
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Vector3, Point
 from nav_msgs.msg import Odometry
 from sam_diving_controller.controllers.DiveControllerInterface import DiveControllerInterface
 from sam_diving_controller.controllers.ONNXManager import ONNXManager, norm_move, norm_align
@@ -13,7 +13,7 @@ class DiveControllerONNX(DiveControllerInterface):
 
     def __init__(self, node, dive_pub, dive_sub, param, rate=0.2):
         super().__init__(node, dive_pub, dive_sub, param, rate)
-
+        np.set_printoptions(precision=2, suppress=True)
         # Convenience Topics
         self._current_state = None
         self._current_state_in_odom = None
@@ -48,29 +48,32 @@ class DiveControllerONNX(DiveControllerInterface):
             return
 
         # Get the current states
-        current_state_in_mocap = self._dive_sub.get_states_in_mocap()
+        current_state_in_mocap_flu = self._dive_sub.get_states_in_mocap()
 
-        if current_state_in_mocap is None:
+        if current_state_in_mocap_flu is None:
             self._loginfo_once(f"No state available yet.")
             return
 
-        odometry_mocap_frd = self.convert_flu_to_frd(current_state_in_mocap, convert_pos=False)
-        odometry_body_frd = self.convert_to_body(current_state_in_mocap, odometry_mocap_frd)
-        waypoint_body_frd =  self.convert_flu_to_frd(self.convert_to_body(current_state_in_mocap, waypoint_mocap_frd), True)
+        odometry_frd = self.convert_flu_to_frd(current_state_in_mocap_flu, convert_pos=False)
+        waypoint_body_frd = self.convert_to_body(odometry_frd, waypoint_mocap_frd)
         control_input = self._dive_sub.get_control_input()
 
         self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
                                                   or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
 
-        pos = odometry_body_frd.twist.twist.linear
-        self._loginfo(f'Vec: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
-
-        onnx_input = self.manager.prepare_state((odometry_mocap_frd,
-                                                 odometry_body_frd,
+        onnx_input = self.manager.prepare_state((odometry_frd,
                                                  waypoint_body_frd,
                                                  control_input))
-        control_output = self.manager.get_control_scaled(onnx_input)
+
+        # pos = odometry_frd.pose.pose.position
+        # self._loginfo(f'Odometry_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
+        # pos = waypoint_mocap_frd.pose.pose.position
+        # self._loginfo(f'Waypoint_mocap_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
+        self._loginfo(f'Vec: {onnx_input[0, 10:13]}')
+
+        control_output = self.manager.get_control(onnx_input)
+        control_output = self.manager.rescale_outputs(control_output)
 
         self.set_publishers(control_output)
 
@@ -133,7 +136,7 @@ class DiveControllerONNX(DiveControllerInterface):
         """
         u_rpm1 = outputs[0]
         u_rpm2 = outputs[0]
-        u_stern = outputs[1]
+        u_aileron = outputs[1]
         u_rudder = outputs[2]
         u_vbs = outputs[3]
         u_lcg = outputs[4]
@@ -141,7 +144,7 @@ class DiveControllerONNX(DiveControllerInterface):
         # Publish the control input
         self._dive_pub.set_vbs(u_vbs)
         self._dive_pub.set_lcg(u_lcg)
-        self._dive_pub.set_thrust_vector(u_rudder, u_stern)
+        self._dive_pub.set_thrust_vector(u_rudder, u_aileron)
         self._dive_pub.set_rpm(u_rpm1, u_rpm2)
 
     def _get_waypoint(self):
@@ -184,17 +187,22 @@ class DiveControllerONNX(DiveControllerInterface):
 
         return odom_wp
 
-    def convert_to_body(self, target_frame: Odometry, odometry: Odometry):
+    def convert_to_body(self, current_state_in_mocap: Odometry, waypoint_in_mocap: Odometry):
         odom = Odometry()
 
         odom.child_frame_id = ""
         odom.header.frame_id = "base_link"
         odom.header.stamp = self._node.get_clock().now().to_msg()
 
-        odom.pose.pose.position = TransformUtils.transform_point_to_child(target_frame, odometry.pose.pose.position)
-        odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(target_frame, odometry.pose.pose.orientation)
+        waypoint_vector = TransformUtils.vector_to_list(waypoint_in_mocap.pose.pose.position) - TransformUtils.vector_to_list(current_state_in_mocap.pose.pose.position)
 
-        odom.twist.twist = odometry.twist.twist
+
+        child = TransformUtils.rotate_vector_to_child(current_state_in_mocap, Vector3(x=waypoint_vector[0], y=waypoint_vector[1], z=waypoint_vector[2]))
+
+        odom.pose.pose.position = Point(x=child.x, y=child.y, z=child.z)
+        odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(current_state_in_mocap, waypoint_in_mocap.pose.pose.orientation)
+
+        odom.twist.twist = waypoint_in_mocap.twist.twist # Odom velocities already in body frame ??
         # odom.twist.twist.linear = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.linear)
         # odom.twist.twist.angular = TransformUtils.rotate_vector_to_child(target_frame, odometry.twist.twist.angular)
 
