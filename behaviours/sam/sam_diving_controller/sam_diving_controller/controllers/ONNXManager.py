@@ -74,11 +74,12 @@ class ONNXManager():
 
         x = np.zeros((1, 28), dtype=np.float32)
 
+        orientation = force_positive_quat(odom_frd.pose.pose.orientation)
         # x[0-3] = Orientation. Mocap frame. FRD, Quaternion
-        x[0, 0] = odom_frd.pose.pose.orientation.x
-        x[0, 1] = odom_frd.pose.pose.orientation.y
-        x[0, 2] = odom_frd.pose.pose.orientation.z
-        x[0, 3] = odom_frd.pose.pose.orientation.w
+        x[0, 0] = orientation.x
+        x[0, 1] = orientation.y
+        x[0, 2] = orientation.z
+        x[0, 3] = orientation.w
 
         # x[4-6] = Linear velocity. Body Frame, FRD, Vector3
         linear = limit_vector(np.array(vector_to_list(odom_frd.twist.twist.linear)) * 1.5)
@@ -93,11 +94,12 @@ class ONNXManager():
         x[0, 11] = waypoint.pose.pose.position.y
         x[0, 12] = waypoint.pose.pose.position.z
 
+        waypoint_orientation = force_positive_quat(waypoint.pose.pose.orientation)
         # x[13-16] = Relative orientation of waypoint w.r.p body. Body Frame, FRD, Quaternion
-        x[0, 13] = waypoint.pose.pose.orientation.x
-        x[0, 14] = waypoint.pose.pose.orientation.y
-        x[0, 15] = waypoint.pose.pose.orientation.z
-        x[0, 16] = waypoint.pose.pose.orientation.w
+        x[0, 13] = waypoint_orientation.x
+        x[0, 14] = waypoint_orientation.y
+        x[0, 15] = waypoint_orientation.z
+        x[0, 16] = waypoint_orientation.w
 
         # x[17] = Target velocity magnitude. Between 0.1 - 0.5. Normalized to 0.2 - 1
         x[0, 17] = 1
@@ -138,6 +140,10 @@ class ONNXManager():
         y[4] = ((y[4] + 1) * 0.5) * self.lcg_max
         return y
 
+def force_positive_quat(quaternion):
+    if quaternion.w < 0:
+        quaternion = -quaternion
+    return quaternion
 
 def norm_move(x):
     x[:, 10:13] = limit_vector(x[:, 10:13] / 9)

@@ -70,7 +70,7 @@ class DiveControllerONNX(DiveControllerInterface):
         # self._loginfo(f'Odometry_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
         # pos = waypoint_mocap_frd.pose.pose.position
         # self._loginfo(f'Waypoint_mocap_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
-        self._loginfo(f'Vec: {onnx_input[0, 10:13]}')
+        self._loginfo(f'Vec: {onnx_input[0, 0:4]}')
 
         control_output = self.manager.get_control(onnx_input)
         control_output = self.manager.rescale_outputs(control_output)
@@ -194,12 +194,7 @@ class DiveControllerONNX(DiveControllerInterface):
         odom.header.frame_id = "base_link"
         odom.header.stamp = self._node.get_clock().now().to_msg()
 
-        waypoint_vector = TransformUtils.vector_to_list(waypoint_in_mocap.pose.pose.position) - TransformUtils.vector_to_list(current_state_in_mocap.pose.pose.position)
-
-
-        child = TransformUtils.rotate_vector_to_child(current_state_in_mocap, Vector3(x=waypoint_vector[0], y=waypoint_vector[1], z=waypoint_vector[2]))
-
-        odom.pose.pose.position = Point(x=child.x, y=child.y, z=child.z)
+        odom.pose.pose.position = TransformUtils.transform_point_to_child(current_state_in_mocap, waypoint_in_mocap.pose.pose.position)
         odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(current_state_in_mocap, waypoint_in_mocap.pose.pose.orientation)
 
         odom.twist.twist = waypoint_in_mocap.twist.twist # Odom velocities already in body frame ??
