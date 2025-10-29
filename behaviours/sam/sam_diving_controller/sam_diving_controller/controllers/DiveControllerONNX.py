@@ -23,8 +23,8 @@ class DiveControllerONNX(DiveControllerInterface):
         self._error = None
         self.waypoint = None
 
-        self.onnx_manager_move = ONNXManager("SAMAlign")
-        self.onnx_manager_align = ONNXManager("SAMMove")
+        self.onnx_manager_move = ONNXManager("PoolMove")
+        self.onnx_manager_align = ONNXManager("PoolAlign")
         self.onnx_manager_move.normalization = norm_move
         self.onnx_manager_align.normalization = norm_align
         self.manager = self.onnx_manager_move
@@ -58,9 +58,9 @@ class DiveControllerONNX(DiveControllerInterface):
         waypoint_body_frd = self.convert_to_body(odometry_frd, waypoint_mocap_frd)
         control_input = self._dive_sub.get_control_input()
 
-        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
-                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
-            else self.onnx_manager_move
+        # self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
+        #                                           or np.linalg.norm(TransformUtils.vector_to_list(waypoint_body_frd.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
+        #     else self.onnx_manager_move
 
         onnx_input = self.manager.prepare_state((odometry_frd,
                                                  waypoint_body_frd,
@@ -70,7 +70,7 @@ class DiveControllerONNX(DiveControllerInterface):
         # self._loginfo(f'Odometry_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
         # pos = waypoint_mocap_frd.pose.pose.position
         # self._loginfo(f'Waypoint_mocap_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
-        self._loginfo(f'Vec: {onnx_input[0, 0:4]}')
+        self._loginfo(f'Vec: {onnx_input[0, 13:17]}')
 
         control_output = self.manager.get_control(onnx_input)
         control_output = self.manager.rescale_outputs(control_output)

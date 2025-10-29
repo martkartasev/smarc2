@@ -142,7 +142,10 @@ class ONNXManager():
 
 def force_positive_quat(quaternion):
     if quaternion.w < 0:
-        quaternion = -quaternion
+        quaternion.x = -quaternion.x
+        quaternion.y = -quaternion.y
+        quaternion.z = -quaternion.z
+        quaternion.w = -quaternion.w
     return quaternion
 
 def norm_move(x):
