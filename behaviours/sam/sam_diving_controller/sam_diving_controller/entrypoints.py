@@ -9,12 +9,17 @@ from .ParamUtils import DivingModelParam
 from .DiveSub import DiveSub
 from .DivePub import DivePub
 from .SimPub import SimPub
-from .AnalyticalSAMSim import AnalyticalSAMSim
+try:
+    from .AnalyticalSAMSim import AnalyticalSAMSim
+    from .controllers.DiveControllerPID import DiveControllerPID
+    from .controllers.DiveControllerMPC import DiveControllerMPC
+    from .controllers.DiveControllerJoyPID import DiveControllerJoyPID
+except ModuleNotFoundError:
+    print("Ignoring acados")
+
 from .ConveniencePub import ConveniencePub
 
-from .controllers.DiveControllerPID import DiveControllerPID
-from .controllers.DiveControllerMPC import DiveControllerMPC
-from .controllers.DiveControllerJoyPID import DiveControllerJoyPID
+
 
 from .ActionServerDiveSub import DiveActionServerSub, HydropointServer, MPCPathServer
 from smarc_action_base.smarc_action_base import ActionType
@@ -163,5 +168,5 @@ def mpc_trajectory_tracking():
 
 def rl_waypoint_following():
     run_mode(node_name="RLWaypointFollowingNode",
-             build=_build_mpc_trajectory_tracking,
+             build=_build_rl_waypoint_following,
              log_banner="RL Waypoint Following")
