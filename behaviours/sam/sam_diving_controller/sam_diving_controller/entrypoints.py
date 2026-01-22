@@ -1,6 +1,8 @@
 # my_pkg/entrypoints.py
 from __future__ import annotations
 
+from sam_diving_controller.controllers.DiveControllerONNX import DiveControllerONNX
+
 from .dive_runner import Components, Rates, run_mode
 
 from .ParamUtils import DivingModelParam
@@ -104,7 +106,6 @@ def _build_mpc_wp_following(node, rates: Rates) -> Components:
 
 
 def _build_mpc_trajectory_tracking(node, rates: Rates) -> Components:
-
     param = DivingModelParam(node).get_param()
     action_type = ActionType(BaseAction)
 
@@ -119,6 +120,20 @@ def _build_mpc_trajectory_tracking(node, rates: Rates) -> Components:
 
     return Components(dive_pub=dive_pub, dive_controller=dive_controller,
                       dive_sub=dive_sub, convenience_pub=convenience_pub)
+
+
+def _build_rl_waypoint_following(node, rates: Rates) -> Components:
+    param = DivingModelParam(node).get_param()
+    action_type = ActionType(BaseAction)
+    heartbeat_topic = SMaRCTopics.WARA_PS_ACTION_SERVER_HB_TOPIC
+
+    dive_sub = HydropointServer(node, "go_to_hydropoint", action_type, param, heartbeat_topic)
+    dive_pub = DivePub(node, dive_sub, param)
+    dive_controller = DiveControllerONNX(node, dive_pub, dive_sub, param)
+
+    return Components(dive_pub=dive_pub,
+                      dive_controller=dive_controller,
+                      dive_sub=dive_sub)
 
 
 # --- Console-script entry points (module-level functions) ---
@@ -145,3 +160,8 @@ def mpc_trajectory_tracking():
     run_mode(node_name="MpcTrajectoryTracking",
              build=_build_mpc_trajectory_tracking,
              log_banner="MPC Trajectory tracking")
+
+def rl_waypoint_following():
+    run_mode(node_name="RLWaypointFollowingNode",
+             build=_build_mpc_trajectory_tracking,
+             log_banner="RL Waypoint Following")
