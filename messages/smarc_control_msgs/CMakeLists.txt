@@ -25,8 +25,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ControlState.msg"
   "msg/State.msg"
   "msg/SamControl.msg"
-  "action/TrajectoryMPC.action"
+  "msg/TrajectoryMPC.msg"
   "msg/WpMPC.msg"
+  "msg/MissionEvent.msg"
   DEPENDENCIES std_msgs sam_msgs smarc_msgs
  )
 

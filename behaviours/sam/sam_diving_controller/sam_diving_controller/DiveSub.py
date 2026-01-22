@@ -3,6 +3,8 @@
 import rclpy, sys, time
 from rclpy.node import Node
 
+import csv
+
 import numpy as np
 import math
 
@@ -15,6 +17,7 @@ from sensor_msgs.msg import Imu
 
 from smarc_msgs.msg import PercentStamped, ThrusterRPM, ThrusterFeedback
 from smarc_control_msgs.msg import Topics as ControlTopics
+from smarc_control_msgs.msg import TrajectoryMPC
 from sam_msgs.msg import Topics as SamTopics
 from sam_msgs.msg import ThrusterAngles, ThrusterRPMs
 from dead_reckoning_msgs.msg import Topics as DRTopics
@@ -98,18 +101,19 @@ class DiveSub():
         self._control_input['stern'] = self.param['tv_u_neutral']
         self._control_input['rudder'] = self.param['tv_u_neutral']
 
-        self.state_sub = node.create_subscription(msg_type=Odometry, topic=ControlTopics.STATES, callback=self._states_cb, qos_profile=10)
+        self.state_sub = node.create_subscription(msg_type=Odometry, topic='odom_tf', callback=self._states_cb, qos_profile=10)
+        #self.state_sub = node.create_subscription(msg_type=Odometry, topic=ControlTopics.STATES, callback=self._states_cb, qos_profile=10)
         self.waypoint_sub = node.create_subscription(msg_type=PoseStamped, topic=ControlTopics.WAYPOINT, callback=self._wp_cb, qos_profile=10)
         self.joy_depth_setpoint_sub = node.create_subscription(msg_type=Float64, topic=ControlTopics.ELEV_SP_TOP, callback=self._joy_depth_setpoint_cb, qos_profile=10)
         self.depth_sub = node.create_subscription(msg_type=PoseWithCovarianceStamped, topic=DRTopics.DR_DEPTH_POSE_TOPIC, callback=self._depth_cb, qos_profile=10)
         self.pitch_sub = node.create_subscription(msg_type=Imu, topic=ControlTopics.PITCH, callback=self._pitch_cb, qos_profile=10)
 
         # Path subscriber - Added for trajectory tracking
-        self.path_sub = node.create_subscription(msg_type=Path, topic='planned_path', callback=self._path_cb, qos_profile=10)
+        #self.path_sub = node.create_subscription(msg_type=TrajectoryMPC, topic='planned_path', callback=self._path_cb, qos_profile=10)
 
         # Test of subscribers - excluding ctrl_synch_msg
-        self.lcg_fb = node.create_subscription(msg_type=PercentStamped, topic=SamTopics.LCG_CMD_TOPIC, callback=self._lcg_cb, qos_profile=10)
-        self.vbs_fb = node.create_subscription(msg_type=PercentStamped, topic=SamTopics.VBS_CMD_TOPIC, callback=self._vbs_cb, qos_profile=10)
+        self.lcg_fb = node.create_subscription(msg_type=PercentStamped, topic=SamTopics.LCG_FB_TOPIC, callback=self._lcg_cb, qos_profile=10)
+        self.vbs_fb = node.create_subscription(msg_type=PercentStamped, topic=SamTopics.VBS_FB_TOPIC, callback=self._vbs_cb, qos_profile=10)
         # self.rpm1_fb = node.create_subscription(msg_type=ThrusterRPM, topic=SamTopics.THRUSTER1_CMD_TOPIC, callback=self._lcg_cb, qos_profile=10)
         # self.rpm2_fb = node.create_subscription(msg_type=ThrusterRPM, topic=SamTopics.THRUSTER2_CMD_TOPIC, callback=self._lcg_cb, qos_profile=10)
         # FIXME: Why is this hardcoded?
@@ -129,6 +133,10 @@ class DiveSub():
         #    slop = 0.0001
         #)
         #self.ctrl_synch_msg.registerCallback(self._ctrl_synch_cb)
+
+        # DEBUGGING the trajectory tracking
+        #file_path = "/home/parallels/ros2_ws/src/smarc2/behaviours/sam/sam_diving_controller/sam_diving_controller/trajectoryComplexity3.csv"
+        #self.path = self.read_csv_to_array(file_path)
 
         self._loginfo("Dive Subscriber Node started")
 
@@ -190,7 +198,6 @@ class DiveSub():
         self._control_input['rudder'] = thrust_vector_fb_msg.thruster_horizontal_radians
 
     def _update_tf(self):
-        # FIXME: This could be an issue? What if we do path planning? Which frames do we use then?
         if self._waypoint_global is None:
             return
 
@@ -254,7 +261,7 @@ class DiveSub():
 
         self._states_in_mocap.header.frame_id = self._waypoint_global.header.frame_id
         self._states_in_mocap.pose.pose = tf2_geometry_msgs.do_transform_pose(self._states.pose.pose, self._tf_global_odom)
-        self._states_in_mocap.twist.twist = self._states.twist.twist
+        self._states_in_mocap.twist = self._states.twist
 
         self._transformed_state_to_mocap = True
 
@@ -381,11 +388,33 @@ class DiveSub():
     def get_path(self, path):
         return self.path
 
+
     def get_waypoint_in_odom(self):
         return self._waypoint_in_odom
 
     def get_waypoint_in_body(self):
         return self._waypoint_in_body
+
+
+    def read_csv_to_array(self, file_path: str):
+        """
+        Reads a CSV file and converts the elements to a NumPy array.
+
+        Parameters:
+        file_path (str): The path to the CSV file.
+
+        Returns:
+        np.array: A NumPy array containing the CSV data.
+        """
+        data = []
+        with open(file_path, 'r') as csvfile:
+            csvreader = csv.reader(csvfile)
+            next(csvreader)
+            for row in csvreader:
+                data.append([float(element) for element in row])
+
+        return np.array(data)
+
 
     def get_path(self):
         return self.path
@@ -445,7 +474,7 @@ class DiveSub():
         All the things when updating
         """
         self._update_tf()
-        self._transform_wp()
+        #self._transform_wp()
         self._transform_state()
         #self._loginfo(f"Dive Sub update loop")
 

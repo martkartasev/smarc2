@@ -15,6 +15,8 @@ from smarc_msgs.action import BaseAction
 from smarc_mission_msgs.msg import Topics as MissionTopics
 from smarc_msgs.msg import Topics as SMaRCTopics
 
+from nav_msgs.msg import Odometry, Path
+
 from smarc_utilities.georef_utils import convert_latlon_to_utm
 
 from geometry_msgs.msg import PoseStamped 
@@ -59,6 +61,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from sam_path_following.path_action import ActionComponent as ActC
 from sam_path_following.path_action import PathAction
+from sam_path_following.path_server import PathServer
 from go_to_hydrobaticpoint.hydrobaticpoint_action import HydrobaticPointAction
 
 try:
@@ -252,6 +255,8 @@ class HydropointServer(SMARCActionServer, DiveSub):
         robot_name: provided robot name from launch file
         target_frame: frame that goal's should be transformed to
     """
+
+    # TODO: Refactor this the same way you have the MPCPathServer below
 
     def __init__(
                 self,
@@ -519,9 +524,9 @@ class HydropointServer(SMARCActionServer, DiveSub):
         result_msg = self.action_type.Result
         hydropoint = self._json_ops.decode(goal_handle.request.goal, 0) #ActC.GOAL)
         self.logger.info(f"Hydropoint sent: {hydropoint}")
-
-        # Action succeeded
         status = self.feedback_loop(hydropoint, goal_handle)
+
+        # Action finished
         if status == "cancelled":
             self.logger.info("Goal was cancelled by client.")
             self.set_mission_state(MissionStates.CANCELLED, "AS")
@@ -587,8 +592,7 @@ class HydropointServer(SMARCActionServer, DiveSub):
         return CancelResponse.ACCEPT
 
 
-
-class PathServer(SMARCActionServer, DiveSub):
+class MPCPathServer(PathServer, DiveSub):
     """Action point server that handle GotoGeopoint messages.
 
     Attributes:
@@ -602,126 +606,57 @@ class PathServer(SMARCActionServer, DiveSub):
         self.param = param
         self._node = node
 
-        SMARCActionServer.__init__(self,
+        PathServer.__init__(self,
             node,
             action_name,
-            action_type,
-            SMaRCTopics.WARA_PS_ACTION_SERVER_HB_TOPIC,
+            action_type
         )
         DiveSub.__init__(self,self._node, self.param)
 
-        self.logger = node.get_logger()
-
-        self.path = None
-        self.path_len = None
-        self.current_idx = 0
-
-        #self.declare_parameters()
-
-        self.logger.set_level(rclpy.logging.LoggingSeverity.INFO)
-
-        self._json_ops: PathAction = PathAction()
+        #node.destroy_subscription(self.path_sub)
 
         self._loginfo("Path Action Server started")
 
 
-    # TODO: Cancel process. Need to stop the controller as well, similar to the wp action server.
-
-#    def declare_parameters(self):
-#        """Declares all of node's parameters in a single location."""
-#
-#        # TODO: Which ones are actually needed?
-#
-#        node = self._node
-#        self.robot_name = node.declare_parameter("robot_name", "Quadrotor").value
-#        self._target_frame_param = node.declare_parameter("target_frame", "odom").value
-#
-#        self._distance_frame_param = node.declare_parameter(
-#            "distance_frame",
-#            "base_link",
-#            ParameterDescriptor(
-#                description="Frame for which the distance to target will be computed (usually base_link)"
-#            ),
-#        ).value
-#
-#        self._distance_frame_suffix = node.declare_parameter(
-#            "distance_frame_suffix",
-#            "_gt",
-#            ParameterDescriptor(
-#                description="Frame suffix for distance frame. Commonly is '_gt' for ground truth if applicable"
-#            ),
-#        ).value
-#
-#        self._frame_suffix = node.declare_parameter(
-#            "frame_suffix",
-#            "_gt",
-#            ParameterDescriptor(
-#                description="Frame suffix for transform. Commonly is '_gt' for ground truth if applicable"
-#            ),
-#        ).value
-#
-#        self._setpoint_tol: float = node.declare_parameter(
-#            "setpoint_tolerance",
-#            0.25,
-#            ParameterDescriptor(
-#                description="Setpoint tolerance for when the goal is considered achieved (Euclidean norm)."
-#            ),
-#        ).value
-#
-#        # self._setpoint_topic = node.declare_parameter(
-#        #     "setpoint_topic",
-#        #     "go_to_setpoint",
-#        #     ParameterDescriptor(
-#        #         description="Topic to publish setpoint targets to. Will be prepended with 'robot_name'"
-#        #     ),
-#        # ).value
-#
-#        self._goal_threshold = (
-#            node.declare_parameter(
-#                "goal_threshold",
-#                10,
-#                ParameterDescriptor(
-#                    description="Distance threshold in meters where a goal should be rejected. (Euclidean Norm)"
-#                ),
-#            ).value
-#        )
-#
-#        self.target_frame = (
-#            f"{self.robot_name}/{self._target_frame_param}{self._frame_suffix}"
-#        )
-#        self.logger.info(f"Target frame {self.target_frame}")
-#
-#        self.distance_frame = f"{self.robot_name}/{self._distance_frame_param}{self._distance_frame_suffix}"
-#        self.logger.info(f"Distance frame {self.distance_frame}")
-
-    def _save_path(self, path):
+    def _save_path(self, goal_path):
         """
         Convert path from list to numpy array.
         """
+
+        # Set global waypoint to trigger update_tf in DiveSub. Ugly, but works for now.
+        self._waypoint_global = Odometry()
+        self._waypoint_global.header.frame_id = 'KTHTank/mocap'
+        #self._waypoint_global.header.frame_id = 'mocap'
+        
+        path = []
+        for i in range(0, len(goal_path.trajectory)):
+            i_path = []
+
+            i_path.append(goal_path.trajectory[i].wp.pose.position.x)
+            i_path.append(goal_path.trajectory[i].wp.pose.position.y)
+            i_path.append(goal_path.trajectory[i].wp.pose.position.z)
+            i_path.append(goal_path.trajectory[i].wp.pose.orientation.w)
+            i_path.append(goal_path.trajectory[i].wp.pose.orientation.x)
+            i_path.append(goal_path.trajectory[i].wp.pose.orientation.y)
+            i_path.append(goal_path.trajectory[i].wp.pose.orientation.z)
+            i_path.append(goal_path.trajectory[i].velocities.linear.x)
+            i_path.append(goal_path.trajectory[i].velocities.linear.y)
+            i_path.append(goal_path.trajectory[i].velocities.linear.z)
+            i_path.append(goal_path.trajectory[i].velocities.angular.x)
+            i_path.append(goal_path.trajectory[i].velocities.angular.y)
+            i_path.append(goal_path.trajectory[i].velocities.angular.z)
+            i_path.append(goal_path.trajectory[i].nominal_control.vbs.value)
+            i_path.append(goal_path.trajectory[i].nominal_control.lcg.value)
+            i_path.append(goal_path.trajectory[i].nominal_control.thruster_angles.thruster_vertical_radians)
+            i_path.append(goal_path.trajectory[i].nominal_control.thruster_angles.thruster_horizontal_radians)
+            i_path.append(goal_path.trajectory[i].nominal_control.rpms.thruster_1_rpm)
+            i_path.append(goal_path.trajectory[i].nominal_control.rpms.thruster_2_rpm)
+
+            path.append(i_path)
+
+
         self.path = np.asarray(path)
         self.logger.info(f"AS: saved path")
-
-
-    def goal_callback(self, goal_request: ActionType.Goal) -> GoalResponse:
-        """Considers a goal validity and evaluates whether it should be accepted or not.
-
-        Args:
-            goal_request (ActionType.Goal): Goal message
-
-        Returns:
-            response: Either GoalResponse.Accept or GoalResponse.Reject
-
-        """
-        # TODO: Think of whether you want to reject any goal. For now, accept
-        # everything, as we assume the planner to know what it's doing.
-        goal_request = goal_request.goal
-        path = self._json_ops.decode(goal_request, ActC.GOAL)
-        self.logger.info(f"Recieved path")
-        self._save_path(path)
-        self.path_len = len(self.path) # TODO: Check which index to use, 0 or 1
-
-        # Accepts as all criteria fulfilled
-        return GoalResponse.ACCEPT
 
 
     def execution_callback(self, goal_handle: ServerGoalHandle) -> ActionResult:
@@ -737,6 +672,7 @@ class PathServer(SMARCActionServer, DiveSub):
         status = self.feedback_loop(goal_handle)
         if status == "cancelled":
             self.logger.info("Goal was cancelled by client.")
+            self.set_mission_state(MissionStates.CANCELLED, "AS")
             result_msg.success = False
             return result_msg
         
@@ -753,8 +689,19 @@ class PathServer(SMARCActionServer, DiveSub):
         """
         rate = self._node.create_rate(2)
         feedback = self.action_type.Feedback
+        start_time = self._node.get_clock().now()
 
-        while self.current_idx < self.path_len:
+        while self.current_idx < self.path_len-1:
+            current_time = self._node.get_clock().now()
+            elapsed = (current_time - start_time).nanoseconds / 1e9  # seconds
+            self.set_mission_state(MissionStates.RUNNING, "AS")
+
+            #self.logger.info(f"elapsed: {elapsed}")
+
+            if elapsed > 250:
+                self.logger.info("Goal was cancelled by timeout.")
+                goal_handle.abort()
+                return "cancelled"
 
             self.set_mission_state(MissionStates.RUNNING, "AS")
             if goal_handle.is_cancel_requested:

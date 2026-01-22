@@ -12,7 +12,7 @@ from .controllers.DiveControllerMPC import DiveControllerMPC
 from .controllers.DiveControllerJoyPID import DiveControllerJoyPID
 from .ParamUtils import DivingModelParam
 from .SAMDivePub import SAMDivePub
-from .ActionServerDiveSub import DiveActionServerSub, PathServer, HydropointServer
+from .ActionServerDiveSub import DiveActionServerSub, HydropointServer, MPCPathServer
 from .DiveSub import DiveSub
 from .ConveniencePub import ConveniencePub
 from smarc_action_base.smarc_action_base import (
@@ -204,7 +204,7 @@ def action_server():
     dive_sub = HydropointServer(node, "go_to_hydropoint", action_type, param, heartbeat_topic)
     dive_pub = SAMDivePub(node, dive_sub, param)
     #dive_controller = DiveControllerPID(node, dive_pub, dive_sub, param, dive_controller_rate)
-    dive_controller = DiveControllerMPC(node, dive_pub, dive_sub, param, dive_controller_rate)
+    dive_controller = DiveControllerMPC(node, dive_pub, dive_sub, param, False, dive_controller_rate)
 
     convenience_pub = ConveniencePub(node, dive_sub, dive_controller)
 
@@ -305,9 +305,9 @@ def mpc_trajectory_tracking():
 
     param = DivingModelParam(node).get_param()
     action_type = ActionType(BaseAction)
-    dive_sub = PathServer(node, "auv_trajectory_tracking", action_type, param)
+    dive_sub = MPCPathServer(node, "auv_trajectory_tracking", action_type, param)
     dive_pub = SAMDivePub(node, dive_sub, param)
-    dive_controller = DiveControllerMPC(node, dive_pub, dive_sub, param, dive_controller_rate)
+    dive_controller = DiveControllerMPC(node, dive_pub, dive_sub, param, ref_is_trajectory=True, rate=dive_controller_rate)
 
     convenience_pub = ConveniencePub(node, dive_sub, dive_controller)
 
