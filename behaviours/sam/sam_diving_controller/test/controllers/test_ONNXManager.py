@@ -95,7 +95,7 @@ def test_rescale_outputs_customconfig_testset():
 
 
 def test_prepare_state():
-    state = sut.prepare_state((Odometry(), Odometry(), Odometry(), {
+    state = sut.prepare_state((Odometry(), Odometry(), {
         "rpm1": 1000,
         "stern": 0.2,
         "rudder": 0,

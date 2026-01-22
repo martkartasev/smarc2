@@ -37,7 +37,8 @@ def test_rotate_vector_90deg_yaw_vector_vector3():
     odom = make_odom(q=Quaternion(x=quaternion_tuple[0], y=quaternion_tuple[1], z=quaternion_tuple[2], w=quaternion_tuple[3]))
 
     vector_parent = np.array([1.0, 0.0, 0.0])
-    vector_child = rotate_vector_to_child(odom, Vector3(x=vector_parent[0], y=vector_parent[1], z=vector_parent[2]))
+    as_vec_3 = Vector3(x=vector_parent[0], y=vector_parent[1], z=vector_parent[2])
+    vector_child = rotate_vector_to_child(odom, as_vec_3)
 
     np.testing.assert_(isinstance(vector_child, Vector3))
     np.testing.assert_allclose(vector_child.x, 0, atol=1e-7)
