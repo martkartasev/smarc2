@@ -57,11 +57,11 @@ class DiveControllerONNX(DiveControllerInterface):
         odom_enu_flu = convert_pose_frd_to_enu(odom_mocap_frd_flu) #TODO: Unnecessary?
         waypoint_enu = convert_pose_frd_to_enu(waypoint_mocap_frd)
 
-        transform_odom_to_enu = self._dive_sub.lookup_transform(source_frame=odom_enu_flu.header.frame_id, target_frame="KTHTank/map")
-        transform_waypoint_to_enu = self._dive_sub.lookup_transform(source_frame=waypoint_enu.header.frame_id, target_frame="KTHTank/map")
+        transform_odom_to_map = self._dive_sub.lookup_transform(source_frame=odom_enu_flu.header.frame_id, target_frame="KTHTank/map")
+        transform_waypoint_to_map = self._dive_sub.lookup_transform(source_frame=waypoint_enu.header.frame_id, target_frame="KTHTank/map")
 
-        odom_enu_flu_map = transform_odom_pose(odom_enu_flu, transform_odom_to_enu)
-        waypoint_enu_map = transform_odom_pose(waypoint_enu, transform_waypoint_to_enu)
+        odom_enu_flu_map = transform_odom_pose(odom_enu_flu, transform_odom_to_map)
+        waypoint_enu_map = transform_odom_pose(waypoint_enu, transform_waypoint_to_map)
 
         waypoint_enu_body = self.convert_to_body(odom_target=odom_enu_flu_map, odom_to_covert=waypoint_enu_map)
 
