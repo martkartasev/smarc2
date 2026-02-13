@@ -33,7 +33,7 @@ from tf_transformations import euler_from_quaternion
 
 try:
     from .IDivePub import IDivePub, MissionStates
-except: 
+except:
     from IDivePub import IDivePub, MissionStates
 
 class DiveSub():
@@ -93,7 +93,7 @@ class DiveSub():
         self._states_in_mocap = Odometry()
         self._transformed_state_to_mocap = False
 
-        self._control_input = {} 
+        self._control_input = {}
         self._control_input['vbs'] = self.param['vbs_u_neutral']
         self._control_input['lcg'] = self.param['lcg_u_neutral']
         self._control_input['rpm1'] = self.param['rpm_u_neutral']
@@ -160,7 +160,7 @@ class DiveSub():
 
     def _path_cb(self, path):
         self.path = path
-    
+
     def _joy_depth_setpoint_cb(self, msg):
         self._joy_depth = msg.data
 
@@ -191,7 +191,7 @@ class DiveSub():
 
     def _rpms_cb(self, combined_rpms_fb: ThrusterRPMs):
         self._control_input['rpm1'] = combined_rpms_fb.thruster_1_rpm
-        self._control_input['rpm2'] = combined_rpms_fb.thruster_2_rpm 
+        self._control_input['rpm2'] = combined_rpms_fb.thruster_2_rpm
 
     def _thrust_vector_cb(self, thrust_vector_fb_msg: ThrusterAngles):
         self._control_input['stern'] = thrust_vector_fb_msg.thruster_vertical_radians
@@ -291,7 +291,7 @@ class DiveSub():
         # calculate the heading error as the angle between the current heading
         # and where the waypoint is. In case we want to do heading control at
         # one point, we have to change/adjust this.
-        return 0.0 
+        return 0.0
 
     def get_rpm_setpoint(self):
         return self._requested_rpm
@@ -303,7 +303,7 @@ class DiveSub():
         #return self._states
         if self._received_states:
             return self._states
-        else: 
+        else:
             return None
 
     def get_states_in_mocap(self):
@@ -313,13 +313,13 @@ class DiveSub():
         #return self._states
         if self._transformed_state_to_mocap:
             return self._states_in_mocap
-        else: 
+        else:
             return None
 
 
     def get_control_input(self):
         return self._control_input
-    
+
 
     def get_depth(self):
         return self._states.pose.pose.position.z
@@ -338,7 +338,7 @@ class DiveSub():
         return rpy[1]
 
     def get_sensor_pitch(self):
-        
+
         return self._pitch
 
 
@@ -442,7 +442,7 @@ class DiveSub():
     def get_joy_pitch_setpoint(self):
 
         return 0.0
-    
+
     # Has methods
     def has_waypoint(self):
         return self._received_waypoint
@@ -455,19 +455,26 @@ class DiveSub():
         if new_state in MissionStates.TERMINAL_STATES():
             # TODO: Setting the waypoint to None kills the controller, bc it expects
             # a pose.
-            #self._waypoint_global = None 
+            #self._waypoint_global = None
             s = "(Terminal)"
 
         if old_state == new_state:
             return
-        self._loginfo(f"DiveController state: from {node_name}: {old_state} --> {new_state}{s}") 
+        self._loginfo(f"DiveController state: from {node_name}: {old_state} --> {new_state}{s}")
 
     def set_current_idx(self, idx):
         """
         Setting the current index of the trajectory we're following.
         """
-        
+
         self.current_idx = idx
+
+    def lookup_transform(self, target_frame, source_frame):
+        return self._tf_buffer.lookup_transform(
+            target_frame=target_frame,
+            source_frame=source_frame,
+            time=rclpy.time.Time(seconds=0),
+        )
 
     def update(self):
         """
