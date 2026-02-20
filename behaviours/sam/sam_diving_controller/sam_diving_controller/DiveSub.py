@@ -472,7 +472,13 @@ class DiveSub():
         return self._tf_buffer.lookup_transform(
             target_frame=target_frame,
             source_frame=source_frame,
-            time=rclpy.time.Time(seconds=0),
+            time=rclpy.time.Time(seconds=0)
+        )
+
+    def lookup_transform_pose(self, pose, target_frame):
+        return self._tf_buffer.transform(
+            pose,
+            target_frame,
         )
 
     def update(self):

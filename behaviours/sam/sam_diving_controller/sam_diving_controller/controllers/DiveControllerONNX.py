@@ -61,14 +61,24 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo(f"waypoint is None")
             return
 
+        self._loginfo(f"waypoint: {waypoint}")
+
         target_frame_id = "KTHTank/map"
-        baselink_to_map = self._dive_sub.lookup_transform(source_frame=baselink.header.frame_id, target_frame=target_frame_id)
-        waypoint_to_map = self._dive_sub.lookup_transform(source_frame=waypoint.header.frame_id, target_frame=target_frame_id)
 
-        baselink_in_map = transform_odom_pose(baselink, baselink_to_map, target_frame_id)
-        waypoint_in_map = do_transform_pose_stamped(waypoint, waypoint_to_map)
+        baselink_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=baselink.header.frame_id)
+        baselink.pose.pose = tf2_geometry_msgs.do_transform_pose(baselink.pose.pose, baselink_to_map)
+        baselink.header.frame_id = target_frame_id
+        baselink_in_map = baselink
 
-        waypoint_in_body = tf2_geometry_msgs.do_transform_pose_stamped(waypoint_in_map, invert_transform(baselink_to_map))
+        waypoint_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=waypoint.header.frame_id)
+        waypoint_in_map = tf2_geometry_msgs.do_transform_pose_stamped(waypoint, waypoint_to_map)
+
+        waypoint_in_body = self._dive_sub.lookup_transform_pose(waypoint, baselink.child_frame_id) # Keep this for sanity check
+        self._loginfo(f"{waypoint_in_body}")
+
+        position = TransformUtils.transform_point_to_child(baselink_in_map, waypoint_in_map.pose.position)
+        orientation = TransformUtils.rotate_quat_to_child(baselink_in_map, waypoint_in_map.pose.orientation)
+        self._loginfo(f"{position}   {orientation}")
 
         baselink_enu_flu_map = baselink_in_map
         waypoint_enu_body = waypoint_in_body
@@ -103,23 +113,6 @@ class DiveControllerONNX(DiveControllerInterface):
         self._dive_pub.set_thrust_vector(u_rudder, u_aileron)
         self._dive_pub.set_rpm(u_rpm1, u_rpm2)
 
-
-def transform_odom_pose(source: Odometry, transform, target_frame):
-    out = Odometry()
-    out.header.frame_id = target_frame
-    out.header.stamp = source.header.stamp
-    out.child_frame_id = source.child_frame_id
-    out.twist = source.twist
-
-    pose_in = PoseStamped()
-    pose_in.header = source.header
-    pose_in.pose = source.pose.pose
-
-    pose_out = do_transform_pose_stamped(pose_in, transform)
-
-    out.pose.pose = pose_out.pose
-    out.pose.covariance = source.pose.covariance
-    return out
 
 
 def convert_pose_frd_to_enu(odometry_frd):
