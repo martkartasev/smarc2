@@ -9,7 +9,10 @@ from scipy.spatial.transform import Rotation as R
 
 from sam_diving_controller import TransformUtils
 from sam_diving_controller.IDivePub import MissionStates, ActuatorStates
-from tf2_geometry_msgs import do_transform_pose_stamped, do_transform_pose
+from tf2_geometry_msgs import do_transform_pose_stamped, do_transform_pose, tf2_geometry_msgs
+from geometry_msgs.msg import TransformStamped
+from tf_transformations import quaternion_inverse, quaternion_matrix
+import numpy as np
 
 
 class DiveControllerONNX(DiveControllerInterface):
@@ -32,6 +35,10 @@ class DiveControllerONNX(DiveControllerInterface):
         self.onnx_manager_align.normalization = norm_align
         self.manager = self.onnx_manager_move
 
+
+        self.wp_pub = node.create_publisher(PoseStamped, "wp_test", 10)
+        self.baselink_pub = node.create_publisher(Odometry, "baselink_test", 10)
+
         self._loginfo("ONNX Dive Controller created")
 
     def update(self):
@@ -44,47 +51,40 @@ class DiveControllerONNX(DiveControllerInterface):
         # Engage actuators in case they were off before.
         self._dive_pub.set_actuator_states(ActuatorStates.ENGAGED, "DP")
 
-        waypoint_mocap_frd = self._get_waypoint()
-        if waypoint_mocap_frd is None:
-            self._loginfo_once(f"No waypoint available yet.")
+        baselink = self._dive_sub.get_states()
+        if baselink is None:
+            self._loginfo(f"No state available yet.")
             return
 
-        odom_mocap_frd_flu = self._dive_sub.get_states_in_mocap()
-        if odom_mocap_frd_flu is None:
-            self._loginfo_once(f"No state available yet.")
+        waypoint = self._dive_sub.get_waypoint()
+        if waypoint is None:
+            self._loginfo(f"waypoint is None")
             return
-
-        odom_enu_flu = odom_mocap_frd_flu  # convert_pose_frd_to_enu(odom_mocap_frd_flu) #TODO: Unnecessary?
-        waypoint_enu = waypoint_mocap_frd  # convert_pose_frd_to_enu(waypoint_mocap_frd)
 
         target_frame_id = "KTHTank/map"
-        transform_odom_to_map = self._dive_sub.lookup_transform(source_frame=odom_enu_flu.header.frame_id, target_frame=target_frame_id)
-        transform_waypoint_to_map = self._dive_sub.lookup_transform(source_frame=waypoint_enu.header.frame_id, target_frame=target_frame_id)
+        baselink_to_map = self._dive_sub.lookup_transform(source_frame=baselink.header.frame_id, target_frame=target_frame_id)
+        waypoint_to_map = self._dive_sub.lookup_transform(source_frame=waypoint.header.frame_id, target_frame=target_frame_id)
 
-        odom_enu_flu_map = transform_odom_pose(odom_enu_flu, transform_odom_to_map, target_frame_id)
-        waypoint_enu_map = transform_odom_pose(waypoint_enu, transform_waypoint_to_map, target_frame_id)
+        baselink_in_map = transform_odom_pose(baselink, baselink_to_map, target_frame_id)
+        waypoint_in_map = do_transform_pose_stamped(waypoint, waypoint_to_map)
 
-        waypoint_enu_body = self.convert_to_body(odom_target=odom_enu_flu_map, odom_to_covert=waypoint_enu_map)
+        waypoint_in_body = tf2_geometry_msgs.do_transform_pose_stamped(waypoint_in_map, invert_transform(baselink_to_map))
+
+        baselink_enu_flu_map = baselink_in_map
+        waypoint_enu_body = waypoint_in_body
 
         control_input = self._dive_sub.get_control_input()
-        # self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
-        #                                           or np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
-        #     else self.onnx_manager_move
-
-        onnx_input = self.manager.prepare_state((odom_enu_flu_map,
+        onnx_input = self.manager.prepare_state((baselink_enu_flu_map,
                                                  waypoint_enu_body,
                                                  control_input))
-
-        # pos = odometry_frd.pose.pose.position
-        # self._loginfo(f'Odometry_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
-        # pos = waypoint_mocap_frd.pose.pose.position
-        # self._loginfo(f'Waypoint_mocap_frd: x={pos.x:.2f}, y={pos.y:.2f}, z={pos.z:.2f}')
-        self._loginfo(f'Vec: {onnx_input[0, 13:17]}')
 
         control_output = self.manager.get_control(onnx_input)
         control_output = self.manager.rescale_outputs(control_output)
 
         self.set_publishers(control_output)
+        self.baselink_pub.publish(baselink_enu_flu_map)
+        self.wp_pub.publish(waypoint_enu_body)
+
 
     def set_publishers(self, outputs):
         """
@@ -102,58 +102,6 @@ class DiveControllerONNX(DiveControllerInterface):
         self._dive_pub.set_lcg(u_lcg)
         self._dive_pub.set_thrust_vector(u_rudder, u_aileron)
         self._dive_pub.set_rpm(u_rpm1, u_rpm2)
-
-    def _get_waypoint(self):
-        if not self._dive_sub.has_waypoint():
-            return None
-
-        waypoint_in_mocap = self._dive_sub.get_waypoint()
-        # FIXME: This might be useless.
-        if waypoint_in_mocap is None:
-            self._loginfo(f"waypoint_in_mocap is None")
-            return False
-
-        odometry = self.convert_wp_to_odometry(waypoint_in_mocap)
-        return odometry
-
-    def convert_wp_to_odometry(self, wp_msg):
-        """
-        Returns waypoint as Odometry
-        """
-        odom_wp = Odometry()
-
-        if isinstance(wp_msg, PoseStamped):
-            odom_wp.header.frame_id = wp_msg.header.frame_id
-            odom_wp.header.stamp = wp_msg.header.stamp
-
-            odom_wp.pose.pose = wp_msg.pose
-
-        elif isinstance(wp_msg, Pose):
-            odom_wp.header.frame_id = '/mocap'
-            odom_wp.header.stamp = self._node.get_clock().now().to_msg()
-
-            odom_wp.pose.pose.position = wp_msg.position
-            odom_wp.pose.pose.orientation = wp_msg.orientation
-
-        elif isinstance(wp_msg, Odometry):
-            odom_wp = wp_msg
-
-        else:
-            return None
-
-        return odom_wp
-
-    def convert_to_body(self, odom_target: Odometry, odom_to_covert: Odometry):
-        odom = Odometry()
-
-        odom.child_frame_id = ""
-        odom.header.frame_id = "base_link"
-        odom.header.stamp = self._node.get_clock().now().to_msg()
-
-        odom.pose.pose.position = TransformUtils.transform_point_to_child(odom_target, odom_to_covert.pose.pose.position)
-        odom.pose.pose.orientation = TransformUtils.rotate_quat_to_child(odom_target, odom_to_covert.pose.pose.orientation)
-
-        return odom
 
 
 def transform_odom_pose(source: Odometry, transform, target_frame):
@@ -217,3 +165,40 @@ def frd_quat_to_enu(q_xyzw):
 
     q_enu = R.from_matrix(R_enu).as_quat()  # returns [x, y, z, w]
     return q_enu
+
+
+def invert_transform(t: TransformStamped) -> TransformStamped:
+    q = [
+        t.transform.rotation.x,
+        t.transform.rotation.y,
+        t.transform.rotation.z,
+        t.transform.rotation.w,
+    ]
+
+    # Invert rotation
+    q_inv = quaternion_inverse(q)
+
+    # Invert translation:  -R^T * t
+    R_inv = quaternion_matrix(q_inv)[0:3, 0:3]
+    t_vec = np.array([
+        t.transform.translation.x,
+        t.transform.translation.y,
+        t.transform.translation.z,
+    ])
+    t_inv_vec = -R_inv @ t_vec
+
+    t_inv = TransformStamped()
+    t_inv.header.stamp = t.header.stamp
+    t_inv.header.frame_id = t.child_frame_id
+    t_inv.child_frame_id = t.header.frame_id
+
+    t_inv.transform.translation.x = t_inv_vec[0]
+    t_inv.transform.translation.y = t_inv_vec[1]
+    t_inv.transform.translation.z = t_inv_vec[2]
+
+    t_inv.transform.rotation.x = q_inv[0]
+    t_inv.transform.rotation.y = q_inv[1]
+    t_inv.transform.rotation.z = q_inv[2]
+    t_inv.transform.rotation.w = q_inv[3]
+
+    return t_inv

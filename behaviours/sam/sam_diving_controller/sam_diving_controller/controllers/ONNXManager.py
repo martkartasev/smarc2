@@ -90,11 +90,11 @@ class ONNXManager():
         x[0, 7:10] = angular
 
         # x[10-12] = Relative vector to waypoint. Body Frame, Vector3
-        x[0, 10] = waypoint.pose.pose.position.x
-        x[0, 11] = waypoint.pose.pose.position.y
-        x[0, 12] = waypoint.pose.pose.position.z
+        x[0, 10] = waypoint.pose.position.x
+        x[0, 11] = waypoint.pose.position.y
+        x[0, 12] = waypoint.pose.position.z
 
-        waypoint_orientation = force_positive_quat(waypoint.pose.pose.orientation)
+        waypoint_orientation = force_positive_quat(waypoint.pose.orientation)
         # x[13-16] = Relative orientation of waypoint w.r.p body. Body Frame, Quaternion
         x[0, 13] = waypoint_orientation.x
         x[0, 14] = waypoint_orientation.y
