@@ -54,14 +54,15 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo_once(f"No state available yet.")
             return
 
-        odom_enu_flu = convert_pose_frd_to_enu(odom_mocap_frd_flu) #TODO: Unnecessary?
-        waypoint_enu = convert_pose_frd_to_enu(waypoint_mocap_frd)
+        odom_enu_flu = odom_mocap_frd_flu  # convert_pose_frd_to_enu(odom_mocap_frd_flu) #TODO: Unnecessary?
+        waypoint_enu = waypoint_mocap_frd  # convert_pose_frd_to_enu(waypoint_mocap_frd)
 
-        transform_odom_to_map = self._dive_sub.lookup_transform(source_frame=odom_enu_flu.header.frame_id, target_frame="KTHTank/map")
-        transform_waypoint_to_map = self._dive_sub.lookup_transform(source_frame=waypoint_enu.header.frame_id, target_frame="KTHTank/map")
+        target_frame_id = "KTHTank/map"
+        transform_odom_to_map = self._dive_sub.lookup_transform(source_frame=odom_enu_flu.header.frame_id, target_frame=target_frame_id)
+        transform_waypoint_to_map = self._dive_sub.lookup_transform(source_frame=waypoint_enu.header.frame_id, target_frame=target_frame_id)
 
-        odom_enu_flu_map = transform_odom_pose(odom_enu_flu, transform_odom_to_map)
-        waypoint_enu_map = transform_odom_pose(waypoint_enu, transform_waypoint_to_map)
+        odom_enu_flu_map = transform_odom_pose(odom_enu_flu, transform_odom_to_map, target_frame_id)
+        waypoint_enu_map = transform_odom_pose(waypoint_enu, transform_waypoint_to_map, target_frame_id)
 
         waypoint_enu_body = self.convert_to_body(odom_target=odom_enu_flu_map, odom_to_covert=waypoint_enu_map)
 
@@ -154,9 +155,11 @@ class DiveControllerONNX(DiveControllerInterface):
 
         return odom
 
-def transform_odom_pose(source: Odometry, transform):
+
+def transform_odom_pose(source: Odometry, transform, target_frame):
     out = Odometry()
-    out.header = source.header
+    out.header.frame_id = target_frame
+    out.header.stamp = source.header.stamp
     out.child_frame_id = source.child_frame_id
     out.twist = source.twist
 
@@ -169,7 +172,6 @@ def transform_odom_pose(source: Odometry, transform):
     out.pose.pose = pose_out.pose
     out.pose.covariance = source.pose.covariance
     return out
-
 
 
 def convert_pose_frd_to_enu(odometry_frd):

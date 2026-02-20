@@ -64,38 +64,38 @@ class ONNXManager():
             y[4] = LCG
         """
 
-        controls = self.onnx_inferenceSession.run(["continuous_actions"], {'obs_0': x})
+        controls = self.onnx_inferenceSession.run(["action_mean"], {'obs': x})
         return np.array(controls[0], dtype=np.float32).flatten()
 
     def prepare_state(self, state):
-        odom_frd = state[0]
+        odom = state[0]
         waypoint = state[1]
         control = state[2]
 
         x = np.zeros((1, 28), dtype=np.float32)
 
-        orientation = force_positive_quat(odom_frd.pose.pose.orientation)
-        # x[0-3] = Orientation. Mocap frame. FRD, Quaternion
+        orientation = force_positive_quat(odom.pose.pose.orientation)
+        # x[0-3] = Orientation. Mocap frame. Quaternion
         x[0, 0] = orientation.x
         x[0, 1] = orientation.y
         x[0, 2] = orientation.z
         x[0, 3] = orientation.w
 
-        # x[4-6] = Linear velocity. Body Frame, FRD, Vector3
-        linear = limit_vector(np.array(vector_to_list(odom_frd.twist.twist.linear)) * 1.5)
+        # x[4-6] = Linear velocity. Body Frame, Vector3
+        linear = limit_vector(np.array(vector_to_list(odom.twist.twist.linear)) * 1.5)
         x[0, 4:7] = linear
 
-        # x[7-9] = Angular velocity. Body Frame, FRD, Vector3
-        angular = limit_vector(np.array(vector_to_list(odom_frd.twist.twist.angular)) * 3)
+        # x[7-9] = Angular velocity. Body Frame, Vector3
+        angular = limit_vector(np.array(vector_to_list(odom.twist.twist.angular)) * 3)
         x[0, 7:10] = angular
 
-        # x[10-12] = Relative vector to waypoint. Body Frame, FRD, Vector3
+        # x[10-12] = Relative vector to waypoint. Body Frame, Vector3
         x[0, 10] = waypoint.pose.pose.position.x
         x[0, 11] = waypoint.pose.pose.position.y
         x[0, 12] = waypoint.pose.pose.position.z
 
         waypoint_orientation = force_positive_quat(waypoint.pose.pose.orientation)
-        # x[13-16] = Relative orientation of waypoint w.r.p body. Body Frame, FRD, Quaternion
+        # x[13-16] = Relative orientation of waypoint w.r.p body. Body Frame, Quaternion
         x[0, 13] = waypoint_orientation.x
         x[0, 14] = waypoint_orientation.y
         x[0, 15] = waypoint_orientation.z
@@ -104,10 +104,10 @@ class ONNXManager():
         # x[17] = Target velocity magnitude. Between 0.1 - 0.5. Normalized to 0.2 - 1
         x[0, 17] = 1
 
-        # x[18-20] = Absolute position. Mocap frame, FRD, Vector3
-        x[0, 18] = range_normalize(odom_frd.pose.pose.position.x, 0.8, 8.2)
-        x[0, 19] = range_normalize(odom_frd.pose.pose.position.y, 1.5, -1.5)
-        x[0, 20] = range_normalize(odom_frd.pose.pose.position.z, 0, 2.8)
+        # x[18-20] = Absolute position. Mocap frame, Vector3
+        x[0, 18] = range_normalize(odom.pose.pose.position.x, 0.8, 8.2)
+        x[0, 19] = range_normalize(odom.pose.pose.position.y, 1.5, -1.5)
+        x[0, 20] = range_normalize(odom.pose.pose.position.z, 0, 2.8)
 
         # x[21-25] = Previous/current "action" vector.
         x[0, 21] = control['rpm1'] / 1000
@@ -149,7 +149,7 @@ def force_positive_quat(quaternion):
     return quaternion
 
 def norm_move(x):
-    x[:, 10:13] = limit_vector(x[:, 10:13] / 9)
+    x[:, 10:13] = limit_vector(x[:, 10:13] / 10)
     return x
 
 
