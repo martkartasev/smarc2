@@ -61,8 +61,6 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo(f"waypoint is None")
             return
 
-        self._loginfo(f"waypoint: {waypoint}")
-
         target_frame_id = "KTHTank/map"
 
         baselink_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=baselink.header.frame_id)
@@ -74,11 +72,11 @@ class DiveControllerONNX(DiveControllerInterface):
         waypoint_in_map = tf2_geometry_msgs.do_transform_pose_stamped(waypoint, waypoint_to_map)
 
         waypoint_in_body = self._dive_sub.lookup_transform_pose(waypoint, baselink.child_frame_id) # Keep this for sanity check
-        self._loginfo(f"{waypoint_in_body}")
+        self._loginfo(f"waypoint in body tf {waypoint_in_body}")
 
         position = TransformUtils.transform_point_to_child(baselink_in_map, waypoint_in_map.pose.position)
         orientation = TransformUtils.rotate_quat_to_child(baselink_in_map, waypoint_in_map.pose.orientation)
-        self._loginfo(f"{position}   {orientation}")
+        self._loginfo(f"manual tf waypoint {position}   {orientation}")
 
         baselink_enu_flu_map = baselink_in_map
         waypoint_enu_body = waypoint_in_body
