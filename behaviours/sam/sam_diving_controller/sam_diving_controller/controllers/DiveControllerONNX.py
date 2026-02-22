@@ -81,6 +81,10 @@ class DiveControllerONNX(DiveControllerInterface):
         baselink_enu_flu_map = baselink_in_map
         waypoint_enu_body = waypoint_in_body
 
+        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
+                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
+            else self.onnx_manager_move
+
         control_input = self._dive_sub.get_control_input()
         onnx_input = self.manager.prepare_state((baselink_enu_flu_map,
                                                  waypoint_enu_body,
