@@ -17,7 +17,7 @@ import numpy as np
 
 class DiveControllerONNX(DiveControllerInterface):
 
-    def __init__(self, node, dive_pub, dive_sub, param, rate=0.02):
+    def __init__(self, node, dive_pub, dive_sub, param, rate=0.2):
         super().__init__(node, dive_pub, dive_sub, param, rate)
         np.set_printoptions(precision=2, suppress=True)
         # Convenience Topics
