@@ -61,7 +61,7 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo(f"waypoint is None")
             return
 
-        target_frame_id = "KTHTank/map"
+        target_frame_id = "map" # unity_tank/map
 
         baselink_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=baselink.header.frame_id)
         baselink.pose.pose = tf2_geometry_msgs.do_transform_pose(baselink.pose.pose, baselink_to_map)
