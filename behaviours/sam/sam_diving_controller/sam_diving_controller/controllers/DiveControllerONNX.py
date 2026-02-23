@@ -17,7 +17,7 @@ import numpy as np
 
 class DiveControllerONNX(DiveControllerInterface):
 
-    def __init__(self, node, dive_pub, dive_sub, param, rate=0.2):
+    def __init__(self, node, dive_pub, dive_sub, param, rate=0.02):
         super().__init__(node, dive_pub, dive_sub, param, rate)
         np.set_printoptions(precision=2, suppress=True)
         # Convenience Topics
@@ -71,25 +71,26 @@ class DiveControllerONNX(DiveControllerInterface):
         waypoint_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=waypoint.header.frame_id)
         waypoint_in_map = tf2_geometry_msgs.do_transform_pose_stamped(waypoint, waypoint_to_map)
 
-        waypoint_in_body = self._dive_sub.lookup_transform_pose(waypoint, baselink.child_frame_id) # Keep this for sanity check
-        self._loginfo(f"waypoint in body tf {waypoint_in_body}")
+        # waypoint_in_body = self._dive_sub.lookup_transform_pose(waypoint, baselink.child_frame_id) # Keep this for sanity check
+        # self._loginfo(f"waypoint in body tf {waypoint_in_body}")
 
         position = TransformUtils.transform_point_to_child(baselink_in_map, waypoint_in_map.pose.position)
         orientation = TransformUtils.rotate_quat_to_child(baselink_in_map, waypoint_in_map.pose.orientation)
-        self._loginfo(f"manual tf waypoint {position}   {orientation}")
+        # self._loginfo(f"manual tf waypoint {position}   {orientation}")
 
         baselink_enu_flu_map = baselink_in_map
-        waypoint_enu_body = waypoint_in_body
+        waypoint_enu_body = PoseStamped(pose=Pose(position=position, orientation=orientation))
 
-        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
-                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.pose.position)) < 1 and self.manager == self.onnx_manager_align \
+        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
+                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.position)) < 1 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
-
+        # self._loginfo(f"baselink in map {baselink_in_map.pose.pose.position}   {baselink_in_map.pose.pose.orientation}")
         control_input = self._dive_sub.get_control_input()
         onnx_input = self.manager.prepare_state((baselink_enu_flu_map,
                                                  waypoint_enu_body,
                                                  control_input))
-
+        logs = onnx_input[:, 18:21]
+        self._loginfo(f"{logs}")
         control_output = self.manager.get_control(onnx_input)
         control_output = self.manager.rescale_outputs(control_output)
 

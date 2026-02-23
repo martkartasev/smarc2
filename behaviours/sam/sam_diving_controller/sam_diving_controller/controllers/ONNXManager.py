@@ -105,9 +105,9 @@ class ONNXManager():
         x[0, 17] = 1
 
         # x[18-20] = Absolute position. Mocap frame, Vector3
-        x[0, 18] = range_normalize(odom.pose.pose.position.x, 0.8, 8.2)
-        x[0, 19] = range_normalize(odom.pose.pose.position.y, 1.5, -1.5)
-        x[0, 20] = range_normalize(odom.pose.pose.position.z, 0, 2.8)
+        x[0, 18] = range_normalize(odom.pose.pose.position.x, -1.5, 1.5)
+        x[0, 19] = range_normalize(odom.pose.pose.position.y, 0.8, 8.2)
+        x[0, 20] = range_normalize(odom.pose.pose.position.z, -2.8, 0)
 
         # x[21-25] = Previous/current "action" vector.
         x[0, 21] = control['rpm1'] / 1000
@@ -141,6 +141,24 @@ class ONNXManager():
         return y
 
 def force_positive_quat(quaternion):
+    q = np.array([
+        quaternion.x,
+        quaternion.y,
+        quaternion.z,
+        quaternion.w
+    ])
+
+    norm = np.linalg.norm(q)
+    if norm == 0.0:
+        raise ValueError("Quaternion has zero norm")
+
+    q /= norm
+
+    quaternion.x = float(q[0])
+    quaternion.y = float(q[1])
+    quaternion.z = float(q[2])
+    quaternion.w = float(q[3])
+
     if quaternion.w < 0:
         quaternion.x = -quaternion.x
         quaternion.y = -quaternion.y
@@ -149,7 +167,7 @@ def force_positive_quat(quaternion):
     return quaternion
 
 def norm_move(x):
-    x[:, 10:13] = limit_vector(x[:, 10:13] / 10)
+    x[:, 10:13] = limit_vector(x[:, 10:13] / 9)
     return x
 
 
