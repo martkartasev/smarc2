@@ -61,7 +61,7 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo(f"waypoint is None")
             return
 
-        target_frame_id = "map" # unity_tank/map
+        target_frame_id = "unity_tank/map" # unity_tank/map
 
         baselink_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=baselink.header.frame_id)
         baselink.pose.pose = tf2_geometry_msgs.do_transform_pose(baselink.pose.pose, baselink_to_map)
@@ -81,16 +81,17 @@ class DiveControllerONNX(DiveControllerInterface):
         baselink_enu_flu_map = baselink_in_map
         waypoint_enu_body = PoseStamped(pose=Pose(position=position, orientation=orientation))
 
-        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.position)) < 0.5 and self.manager == self.onnx_manager_move \
-                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.position)) < 1 and self.manager == self.onnx_manager_align \
+        self.manager = self.onnx_manager_align if np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.position)) < 0.25 and self.manager == self.onnx_manager_move \
+                                                  or np.linalg.norm(TransformUtils.vector_to_list(waypoint_enu_body.pose.position)) < 0.5 and self.manager == self.onnx_manager_align \
             else self.onnx_manager_move
         # self._loginfo(f"baselink in map {baselink_in_map.pose.pose.position}   {baselink_in_map.pose.pose.orientation}")
         control_input = self._dive_sub.get_control_input()
         onnx_input = self.manager.prepare_state((baselink_enu_flu_map,
                                                  waypoint_enu_body,
                                                  control_input))
-        logs = onnx_input[:, 18:21]
-        self._loginfo(f"{logs}")
+        position = onnx_input[:, 18:21]
+        target = onnx_input[:, 10:13]
+        self._loginfo(f"\r\n position {position} \r\n  target {target}")
         control_output = self.manager.get_control(onnx_input)
         control_output = self.manager.rescale_outputs(control_output)
 

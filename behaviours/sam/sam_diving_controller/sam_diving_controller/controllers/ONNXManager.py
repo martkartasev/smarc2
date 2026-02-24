@@ -24,6 +24,7 @@ class ONNXManager():
                  ):
         # options = ort.SessionOptions()
         # options.use_deterministic_compute = True
+        self.model = model_resource
 
         pkg_share = get_package_share_directory("sam_diving_controller")
         onnx_path = os.path.join(pkg_share, "resource", f"{model_resource}.onnx")
