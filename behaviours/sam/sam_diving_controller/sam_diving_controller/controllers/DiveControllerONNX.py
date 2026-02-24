@@ -29,8 +29,8 @@ class DiveControllerONNX(DiveControllerInterface):
         self._error = None
         self.waypoint = None
 
-        self.onnx_manager_move = ONNXManager("PoolMove")
-        self.onnx_manager_align = ONNXManager("PoolAlign")
+        self.onnx_manager_move = ONNXManager("MoveNewRew")
+        self.onnx_manager_align = ONNXManager("Align")
         self.onnx_manager_move.normalization = norm_move
         self.onnx_manager_align.normalization = norm_align
         self.manager = self.onnx_manager_move
