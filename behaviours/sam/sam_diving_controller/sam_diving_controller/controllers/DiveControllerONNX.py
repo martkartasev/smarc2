@@ -35,9 +35,8 @@ class DiveControllerONNX(DiveControllerInterface):
         self.onnx_manager_align.normalization = norm_align
         self.manager = self.onnx_manager_move
 
-
-        self.wp_pub = node.create_publisher(PoseStamped, "wp_test", 10)
-        self.baselink_pub = node.create_publisher(Odometry, "baselink_test", 10)
+        # self.wp_pub = node.create_publisher(PoseStamped, "wp_test", 10)
+        # self.baselink_pub = node.create_publisher(Odometry, "baselink_test", 10)
 
         self._loginfo("ONNX Dive Controller created")
 
@@ -61,7 +60,8 @@ class DiveControllerONNX(DiveControllerInterface):
             self._loginfo(f"waypoint is None")
             return
 
-        target_frame_id = "unity_tank/map" # unity_tank/map
+        # target_frame_id = "unity_tank/map" # unity_tank/map
+        target_frame_id = "map" # for real sam
 
         baselink_to_map = self._dive_sub.lookup_transform(target_frame=target_frame_id, source_frame=baselink.header.frame_id)
         baselink.pose.pose = tf2_geometry_msgs.do_transform_pose(baselink.pose.pose, baselink_to_map)
@@ -86,6 +86,8 @@ class DiveControllerONNX(DiveControllerInterface):
             else self.onnx_manager_move
         # self._loginfo(f"baselink in map {baselink_in_map.pose.pose.position}   {baselink_in_map.pose.pose.orientation}")
         control_input = self._dive_sub.get_control_input()
+        #print(f"state {baselink_enu_flu_map}")
+        #print(f"wp {waypoint_enu_body}")
         onnx_input = self.manager.prepare_state((baselink_enu_flu_map,
                                                  waypoint_enu_body,
                                                  control_input))
@@ -96,21 +98,19 @@ class DiveControllerONNX(DiveControllerInterface):
         control_output = self.manager.rescale_outputs(control_output)
 
         self.set_publishers(control_output)
-        self.baselink_pub.publish(baselink_enu_flu_map)
-        self.wp_pub.publish(waypoint_enu_body)
-
+        
 
     def set_publishers(self, outputs):
         """
         Set the corresponding publishers for the actuators and convenience topics
         """
-        u_rpm1 = outputs[0]
+        u_rpm1 = -outputs[0]
         u_rpm2 = outputs[0]
         u_aileron = outputs[1]
         u_rudder = outputs[2]
         u_vbs = outputs[3]
         u_lcg = outputs[4]
-
+        self._loginfo(f"Control outputs: rpm1={u_rpm1}, rpm2={u_rpm2}, aileron={u_aileron}, rudder={u_rudder}, vbs={u_vbs}, lcg={u_lcg}")
         # Publish the control input
         self._dive_pub.set_vbs(u_vbs)
         self._dive_pub.set_lcg(u_lcg)
